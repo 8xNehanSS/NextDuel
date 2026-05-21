@@ -1,4 +1,4 @@
-package server
+package routes
 
 import (
 	"log"
@@ -13,7 +13,7 @@ var upgrader = websocket.Upgrader{
 	},
 }
 
-func (s *Server) wsHandler(w http.ResponseWriter, r *http.Request) {
+func WSHandler(w http.ResponseWriter, r *http.Request) {
 	conn, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
 		log.Println("WS error:", err)

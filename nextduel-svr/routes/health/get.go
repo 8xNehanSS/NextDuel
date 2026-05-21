@@ -1,7 +1,8 @@
 package health
 
-import "net/http"
+import "nextduel-svr/server"
 
-func HealthHandler(w http.ResponseWriter, r *http.Request) {
-	w.Write([]byte("OK"))
+func HealthHandler(ctx *server.Context) error {
+	ctx.JSON(200, map[string]string{"status": "ok"})
+	return nil
 }

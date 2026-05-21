@@ -4,12 +4,18 @@ import (
 	"log"
 	"nextduel-svr/routes"
 	"nextduel-svr/server"
-	"os"
 )
 
 func main() {
-	port := os.Getenv("PORT")
+	db, err := openDatabase()
+	if err != nil {
+		log.Fatal("Failed to open database:", err)
+	}
+
 	s := server.NewServer()
+
+	s.SetDatabase(db)
 	routes.RegisterRoutes(s)
-	log.Fatal(s.Start(":" + port))
+
+	log.Fatal(s.Start())
 }
