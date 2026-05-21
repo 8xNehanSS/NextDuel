@@ -1,0 +1,38 @@
+# Executables
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+# Build output
+/bin/
+/dist/
+/build/
+
+# Test artifacts
+*.test
+*.out
+
+# Module vendor (only if you use vendor mode)
+vendor/
+
+# Environment files (important if using secrets)
+.env
+.env.*
+!.env.example
+
+# IDE/editor
+.vscode/
+.idea/
+*.swp
+
+# OS junk
+.DS_Store
+Thumbs.db
+
+# Debug / logs
+*.log
+
+# Air live reload (if used)
+tmp/
