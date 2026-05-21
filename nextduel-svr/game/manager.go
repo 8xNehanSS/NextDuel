@@ -10,6 +10,25 @@ type GameManager struct {
 	Queue []*models.Player
 }
 
+func NewGameManager() *GameManager {
+	return &GameManager{
+		Rooms: make(map[string]*Room),
+		Queue: []*models.Player{},
+	}
+}
+
+func (gm *GameManager) GetStatistics() map[string]interface{} {
+	return map[string]interface{}{
+		"rooms":            len(gm.Rooms),
+		"queue":            len(gm.Queue),
+		"players":          len(gm.Queue) + len(gm.Rooms)*2,
+		"players_in_rooms": len(gm.Rooms) * 2,
+		"players_in_queue": len(gm.Queue),
+		"memory_usage":     utils.GetMemoryUsage(),
+		"cpu_usage":        utils.GetCPUUsage(),
+	}
+}
+
 func (gm *GameManager) AddToQueue(p *models.Player) {
 	gm.Queue = append(gm.Queue, p)
 

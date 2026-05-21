@@ -3,6 +3,7 @@ package server
 import (
 	"encoding/json"
 	"net/http"
+	"nextduel-svr/game"
 	"nextduel-svr/utils"
 
 	"gorm.io/gorm"
@@ -17,28 +18,37 @@ type Context struct {
 
 	db     *gorm.DB
 	Config utils.Config
+
+	// game related
+	gameManager *game.GameManager
 }
 
-func NewContext(w http.ResponseWriter, r *http.Request, userID string, authorized bool, db *gorm.DB, config utils.Config) *Context {
+func NewContext(w http.ResponseWriter, r *http.Request, userID string, authorized bool, db *gorm.DB, config utils.Config, gameManager *game.GameManager) *Context {
 	return &Context{
-		writer:     w,
-		request:    r,
-		userID:     userID,
-		authorized: authorized,
-		db:         db,
-		Config:     config,
+		writer:      w,
+		request:     r,
+		userID:      userID,
+		authorized:  authorized,
+		db:          db,
+		Config:      config,
+		gameManager: gameManager,
 	}
 }
 
-func NewUnauthenticatedContext(w http.ResponseWriter, r *http.Request, db *gorm.DB, config utils.Config) *Context {
+func NewUnauthenticatedContext(w http.ResponseWriter, r *http.Request, db *gorm.DB, config utils.Config, gameManager *game.GameManager) *Context {
 	return &Context{
-		writer:     w,
-		request:    r,
-		userID:     "",
-		authorized: false,
-		db:         db,
-		Config:     config,
+		writer:      w,
+		request:     r,
+		userID:      "",
+		authorized:  false,
+		db:          db,
+		Config:      config,
+		gameManager: gameManager,
 	}
+}
+
+func (ctx *Context) Game() *game.GameManager {
+	return ctx.gameManager
 }
 
 func (ctx *Context) DB() *gorm.DB {
