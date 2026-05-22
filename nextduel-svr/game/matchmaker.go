@@ -38,3 +38,14 @@ func (m *Matchmaking) GetQueue() []*models.Player {
 	defer m.mu.Unlock()
 	return m.Queue
 }
+
+func (m *Matchmaking) IsPlayerInQueue(player *models.Player) bool {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	for _, p := range m.Queue {
+		if p.ID == player.ID {
+			return true
+		}
+	}
+	return false
+}

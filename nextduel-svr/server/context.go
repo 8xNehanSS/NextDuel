@@ -83,15 +83,18 @@ func (ctx *Context) LoginSuccess(userID string) {
 
 func (ctx *Context) setCookie(name, value string) {
 	http.SetCookie(ctx.writer, &http.Cookie{
-		Name:  name,
-		Value: value,
+		Name:     name,
+		Value:    value,
+		Path:     "/",
+		SameSite: http.SameSiteNoneMode,
+		Secure:   true,
 	})
 }
 
-func (ctx *Context) SendWSResponse(player []*models.Player, msgType string, data any) {
+func (ctx *Context) SendWSResponse(player []*models.Player, action utils.GameAction, data any) {
 	for _, p := range player {
 		err := p.Conn.WriteJSON(map[string]any{
-			"type": msgType,
+			"type": action,
 			"data": data,
 		})
 

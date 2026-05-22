@@ -9,6 +9,7 @@ import (
 	"nextduel-svr/routes/login"
 	"nextduel-svr/routes/register"
 	"nextduel-svr/server"
+	"nextduel-svr/utils"
 )
 
 func RegisterRoutes(s *server.Server) {
@@ -25,7 +26,7 @@ func RegisterRoutes(s *server.Server) {
 	mux.Handle("/api/", http.StripPrefix("/api", apiMux))
 
 	// websocket route
-	mux.Handle("/ws", s.AuthMiddleware(WSHandler))
+	mux.Handle("/ws", s.WsMiddleware(WSHandler))
 }
 
 func registerPrivateRoutes(s *server.Server, mux *http.ServeMux) {
@@ -39,22 +40,25 @@ func registerPublicRoutes(s *server.Server, mux *http.ServeMux) {
 
 func registerWSHandlers(ctx *server.Context, player *models.Player, msg WSMessage) {
 
-	switch msg.Type {
+	switch utils.GameAction(msg.Type) {
 
-	case "ping":
-		ctx.SendWSResponse([]*models.Player{player}, "pong", "ok")
+	case utils.GameActionPing:
+		ctx.SendWSResponse([]*models.Player{player}, utils.GameActionPong, "ok")
 
-	case "join_queue":
+	case utils.GameActionJoinQueue:
 		game_events.HandleJoinQueue(ctx, player, msg.Data)
 
-	case "player_ready":
+	case utils.GameActionPlayerReady:
 		game_events.HandleReadyPlayer(ctx, player, msg.Data)
 
-	case "create_room":
+	case utils.GameActionCreateRoom:
 		game_events.HandleCreateRoom(ctx, player, msg.Data)
 
-	case "join_room":
+	case utils.GameActionJoinRoom:
 		game_events.HandleJoinRoom(ctx, player, msg.Data)
+
+	case utils.GameActionDuelAnswer:
+		game_events.HandleDuelAnswer(ctx, player, msg.Data)
 
 	default:
 		log.Println("Unknown message:", msg.Type)

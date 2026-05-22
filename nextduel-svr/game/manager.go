@@ -1,6 +1,7 @@
 package game
 
 import (
+	"fmt"
 	"nextduel-svr/models"
 	"nextduel-svr/utils"
 
@@ -17,9 +18,10 @@ type GameManager struct {
 
 func NewGameManager(db *gorm.DB) *GameManager {
 	return &GameManager{
-		rooms:      make(map[string]*Room),
-		db:         db,
-		matchmaker: NewMatchmaking(),
+		rooms:       make(map[string]*Room),
+		playerRooms: make(map[string]string),
+		db:          db,
+		matchmaker:  NewMatchmaking(),
 	}
 }
 
@@ -35,14 +37,24 @@ func (gm *GameManager) GetStatistics() map[string]interface{} {
 	}
 }
 
-func (gm *GameManager) AddToQueue(p *models.Player) bool {
+func (gm *GameManager) AddToQueue(p *models.Player) (*Room, bool, error) {
+	if _, inRoom := gm.playerRooms[p.ID]; inRoom {
+		return nil, false, fmt.Errorf("Player already in a room")
+	}
+
+	if gm.matchmaker.IsPlayerInQueue(p) {
+		return nil, false, fmt.Errorf("Player already in queue")
+	}
+
 	room, matched := gm.matchmaker.AddPlayer(p)
 	if matched {
 		gm.rooms[room.ID] = room
-		gm.AddPlayerToRoom(room.Players[p.ID].ID, room.ID)
-		gm.AddPlayerToRoom(room.Players[room.Players[p.ID].ID].ID, room.ID)
+		players := room.GetPlayers()
+		for _, player := range players {
+			gm.AddPlayerToRoom(player.ID, room.ID)
+		}
 	}
-	return matched
+	return room, matched, nil
 }
 
 func (gm *GameManager) GetRoomByPlayerID(playerID string) (*Room, bool) {
@@ -54,8 +66,15 @@ func (gm *GameManager) GetRoomByPlayerID(playerID string) (*Room, bool) {
 	return room, exists
 }
 
-func (gm *GameManager) AddPlayerToRoom(playerID string, roomID string) {
+func (gm *GameManager) AddPlayerToRoom(playerID string, roomID string) bool {
+	if _, roomExists := gm.rooms[roomID]; !roomExists {
+		return false
+	}
+	if _, playerInRoom := gm.playerRooms[playerID]; playerInRoom {
+		return false
+	}
 	gm.playerRooms[playerID] = roomID
+	return true
 }
 
 func (gm *GameManager) CreateRoom(p *models.Player) *Room {
