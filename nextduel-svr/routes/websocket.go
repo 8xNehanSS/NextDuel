@@ -1,8 +1,11 @@
 package routes
 
 import (
+	"encoding/json"
 	"log"
 	"net/http"
+	"nextduel-svr/models"
+	"nextduel-svr/server"
 
 	"github.com/gorilla/websocket"
 )
@@ -13,23 +16,47 @@ var upgrader = websocket.Upgrader{
 	},
 }
 
-func WSHandler(w http.ResponseWriter, r *http.Request) {
-	conn, err := upgrader.Upgrade(w, r, nil)
+type WSMessage struct {
+	Type string          `json:"type"`
+	Data json.RawMessage `json:"data"`
+}
+
+func WSHandler(ctx *server.Context) error {
+
+	conn, err := upgrader.Upgrade(ctx.ResponseWriter(), ctx.Request(), nil)
 	if err != nil {
 		log.Println("WS error:", err)
-		return
+		return err
 	}
 
-	defer conn.Close()
+	player := &models.Player{
+		ID:   ctx.GetCurrentUserID(),
+		Conn: conn,
+	}
+
+	log.Println("Player connected:", player.ID)
+
+	go readLoop(ctx, player)
+	return nil
+}
+
+func readLoop(ctx *server.Context, player *models.Player) {
+
+	defer func() {
+		player.Conn.Close()
+		log.Println("Player disconnected:", player.ID)
+	}()
 
 	for {
-		_, msg, err := conn.ReadMessage()
+
+		var msg WSMessage
+
+		err := player.Conn.ReadJSON(&msg)
 		if err != nil {
+			log.Println("Read error:", err)
 			break
 		}
 
-		log.Println("WS message:", string(msg))
-
-		conn.WriteMessage(websocket.TextMessage, []byte("ack"))
+		registerWSHandlers(ctx, player, msg)
 	}
 }

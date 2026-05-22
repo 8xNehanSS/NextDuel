@@ -15,17 +15,15 @@ type Server struct {
 	config   utils.Config
 
 	// game functionality
-	GameManager *game.GameManager
+	gameManager *game.GameManager
 }
 
 func NewServer() *Server {
 	config := utils.LoadConfig()
-	gameManager := game.NewGameManager()
 
 	s := &Server{
-		mux:         http.NewServeMux(),
-		config:      config,
-		GameManager: gameManager,
+		mux:    http.NewServeMux(),
+		config: config,
 	}
 	return s
 }
@@ -36,6 +34,14 @@ func (s *Server) GetDbConnection() *gorm.DB {
 
 func (s *Server) SetDatabase(db *gorm.DB) {
 	s.database = db
+}
+
+func (s *Server) GetGameManager() *game.GameManager {
+	return s.gameManager
+}
+
+func (s *Server) SetGameManager(game *game.GameManager) {
+	s.gameManager = game
 }
 
 func (s *Server) Router() *http.ServeMux {

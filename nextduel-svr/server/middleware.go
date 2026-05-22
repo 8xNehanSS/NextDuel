@@ -8,7 +8,7 @@ import (
 func (s *Server) AuthMiddleware(next Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		log.Printf("REQUEST START [%s] %s", r.Method, r.URL.Path)
-		ctx := NewUnauthenticatedContext(w, r, s.GetDbConnection(), s.config, s.GameManager)
+		ctx := NewUnauthenticatedContext(w, r, s.GetDbConnection(), s.config, s.GetGameManager())
 
 		token, err := r.Cookie("NEXT-DUEL")
 		if err != nil || token.Value == "" {
@@ -26,7 +26,7 @@ func (s *Server) AuthMiddleware(next Handler) http.Handler {
 
 func (s *Server) PublicMiddleware(next Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		ctx := NewUnauthenticatedContext(w, r, s.GetDbConnection(), s.config, s.GameManager)
+		ctx := NewUnauthenticatedContext(w, r, s.GetDbConnection(), s.config, s.GetGameManager())
 		next(ctx)
 	})
 }

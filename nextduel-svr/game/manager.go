@@ -3,62 +3,69 @@ package game
 import (
 	"nextduel-svr/models"
 	"nextduel-svr/utils"
+
+	"gorm.io/gorm"
 )
 
 type GameManager struct {
-	Rooms map[string]*Room
-	Queue []*models.Player
+	rooms       map[string]*Room
+	playerRooms map[string]string
+	matchmaker  *Matchmaking
+
+	db *gorm.DB
 }
 
-func NewGameManager() *GameManager {
+func NewGameManager(db *gorm.DB) *GameManager {
 	return &GameManager{
-		Rooms: make(map[string]*Room),
-		Queue: []*models.Player{},
+		rooms:      make(map[string]*Room),
+		db:         db,
+		matchmaker: NewMatchmaking(),
 	}
 }
 
 func (gm *GameManager) GetStatistics() map[string]interface{} {
 	return map[string]interface{}{
-		"rooms":            len(gm.Rooms),
-		"queue":            len(gm.Queue),
-		"players":          len(gm.Queue) + len(gm.Rooms)*2,
-		"players_in_rooms": len(gm.Rooms) * 2,
-		"players_in_queue": len(gm.Queue),
+		"rooms":            len(gm.rooms),
+		"queue":            len(gm.matchmaker.GetQueue()),
+		"players":          len(gm.matchmaker.GetQueue()) + len(gm.rooms)*2,
+		"players_in_rooms": len(gm.rooms) * 2,
+		"players_in_queue": len(gm.matchmaker.GetQueue()),
 		"memory_usage":     utils.GetMemoryUsage(),
 		"cpu_usage":        utils.GetCPUUsage(),
 	}
 }
 
-func (gm *GameManager) AddToQueue(p *models.Player) {
-	gm.Queue = append(gm.Queue, p)
-
-	if len(gm.Queue) >= 2 {
-		p1 := gm.Queue[0]
-		p2 := gm.Queue[1]
-		gm.Queue = gm.Queue[2:]
-
-		room := gm.createRoom(p1, p2)
-		gm.Rooms[room.ID] = room
-
-		room.startGame()
+func (gm *GameManager) AddToQueue(p *models.Player) bool {
+	room, matched := gm.matchmaker.AddPlayer(p)
+	if matched {
+		gm.rooms[room.ID] = room
+		gm.AddPlayerToRoom(room.Players[p.ID].ID, room.ID)
+		gm.AddPlayerToRoom(room.Players[room.Players[p.ID].ID].ID, room.ID)
 	}
+	return matched
 }
 
-func (gm *GameManager) createRoom(p1, p2 *models.Player) *Room {
-	roomID := utils.GenerateRoomID()
-	return &Room{
-		ID:      roomID,
-		Players: map[string]*models.Player{p1.ID: p1, p2.ID: p2},
-		Scores:  map[string]int{p1.ID: 0, p2.ID: 0},
-		Quest:   getRandomQuest(),
-		Status:  "waiting",
+func (gm *GameManager) GetRoomByPlayerID(playerID string) (*Room, bool) {
+	roomID, exists := gm.playerRooms[playerID]
+	if !exists {
+		return nil, false
 	}
+	room, exists := gm.rooms[roomID]
+	return room, exists
 }
 
-func getRandomQuest() models.Quest {
-	return models.Quest{
-		ID:       "quest1",
-		Question: "What is the capital of France?",
-		Answer:   "Paris",
-	}
+func (gm *GameManager) AddPlayerToRoom(playerID string, roomID string) {
+	gm.playerRooms[playerID] = roomID
+}
+
+func (gm *GameManager) CreateRoom(p *models.Player) *Room {
+	room := NewRoom(p, nil)
+	gm.rooms[room.ID] = room
+	gm.AddPlayerToRoom(p.ID, room.ID)
+	return room
+}
+
+func (gm *GameManager) GetRoomByID(roomID string) (*Room, bool) {
+	room, exists := gm.rooms[roomID]
+	return room, exists
 }

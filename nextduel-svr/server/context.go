@@ -2,8 +2,10 @@ package server
 
 import (
 	"encoding/json"
+	"log"
 	"net/http"
 	"nextduel-svr/game"
+	"nextduel-svr/models"
 	"nextduel-svr/utils"
 
 	"gorm.io/gorm"
@@ -84,6 +86,19 @@ func (ctx *Context) setCookie(name, value string) {
 		Name:  name,
 		Value: value,
 	})
+}
+
+func (ctx *Context) SendWSResponse(player []*models.Player, msgType string, data any) {
+	for _, p := range player {
+		err := p.Conn.WriteJSON(map[string]any{
+			"type": msgType,
+			"data": data,
+		})
+
+		if err != nil {
+			log.Println("Write error:", err)
+		}
+	}
 }
 
 func (ctx *Context) JSON(status int, data any) error {
