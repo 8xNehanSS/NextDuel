@@ -50,7 +50,8 @@ func (s *Server) Router() *http.ServeMux {
 
 func (s *Server) Start() error {
 	log.Println("Server running on", s.config.Port)
-	err := http.ListenAndServe(":"+s.config.Port, s.Router())
+	router := s.CorsMiddleware(s.Router())
+	err := http.ListenAndServe(":"+s.config.Port, router)
 	if err != nil {
 		return err
 	}

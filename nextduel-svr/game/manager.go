@@ -25,15 +25,25 @@ func NewGameManager(db *gorm.DB) *GameManager {
 	}
 }
 
-func (gm *GameManager) GetStatistics() map[string]interface{} {
-	return map[string]interface{}{
-		"rooms":            len(gm.rooms),
-		"queue":            len(gm.matchmaker.GetQueue()),
-		"players":          len(gm.matchmaker.GetQueue()) + len(gm.rooms)*2,
-		"players_in_rooms": len(gm.rooms) * 2,
-		"players_in_queue": len(gm.matchmaker.GetQueue()),
-		"memory_usage":     utils.GetMemoryUsage(),
-		"cpu_usage":        utils.GetCPUUsage(),
+type GameStatistics struct {
+	Rooms          int    `json:"rooms"`
+	Queue          int    `json:"queue"`
+	Players        int    `json:"players"`
+	PlayersInRooms int    `json:"players_in_rooms"`
+	PlayersInQueue int    `json:"players_in_queue"`
+	MemoryUsage    string `json:"memory_usage"`
+	CPUUsage       string `json:"cpu_usage"`
+}
+
+func (gm *GameManager) GetStatistics() GameStatistics {
+	return GameStatistics{
+		Rooms:          len(gm.rooms),
+		Queue:          len(gm.matchmaker.GetQueue()),
+		Players:        len(gm.playerRooms),
+		PlayersInRooms: len(gm.playerRooms) - len(gm.matchmaker.GetQueue()),
+		PlayersInQueue: len(gm.matchmaker.GetQueue()),
+		MemoryUsage:    utils.GetMemoryUsage(),
+		CPUUsage:       utils.GetCPUUsage(),
 	}
 }
 
