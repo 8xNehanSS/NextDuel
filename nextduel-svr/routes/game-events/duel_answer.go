@@ -23,12 +23,7 @@ func HandleDuelAnswer(ctx *server.Context, player *models.Player, data json.RawM
 
 	ctx.SendWSResponse([]*models.Player{player}, utils.GameActionDuelAnswer, "recieved")
 
-	if hasAllAnswered {
-		room.ProcessDuelResults()
-		ctx.SendWSResponse(room.GetPlayers(), utils.GameActionDuelComplete, "ok")
-		go room.NextDuel()
-		return
-	} else {
+	if !hasAllAnswered {
 		ctx.SendWSResponse([]*models.Player{room.GetOpponent(player.ID)}, utils.GameActionDuelFast, "opponent answered")
 	}
 }

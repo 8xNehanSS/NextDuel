@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"nextduel-svr/models"
 	"nextduel-svr/utils"
+	"time"
 )
 
 type Room struct {
@@ -13,7 +14,10 @@ type Room struct {
 	Quest   models.Quest
 	Status  string
 
-	counter int
+	round     int
+	maxRounds int
+	timer     uint
+	stopTimer chan struct{}
 }
 
 func NewRoom(p1, p2 *models.Player) *Room {
@@ -28,22 +32,91 @@ func NewRoom(p1, p2 *models.Player) *Room {
 			p1.ID: 0,
 			p2.ID: 0,
 		},
-		Status:  "created",
-		counter: 1,
+		Status:    "created",
+		round:     1,
+		maxRounds: 5,
+		timer:     30,
+		stopTimer: make(chan struct{}),
 	}
 }
 
-func (r *Room) StartGame() {
+func (r *Room) TryStartGame() {
+	if r.AreAllPlayersReady() && r.Status == "created" {
+		r.Status = "active"
+
+		go r.RoomTimer()
+	}
+}
+
+func (r *Room) startGame() {
 	r.Status = "active"
 	for _, player := range r.Players {
 		player.ClearAnswer()
 		player.Conn.WriteJSON(map[string]interface{}{
 			"type":    utils.GameActionDuelStart,
 			"quest":   r.Quest.Question,
-			"round":   r.counter,
+			"round":   r.round,
 			"players": r.getPlayerInfo(),
 		})
 	}
+}
+
+func (r *Room) prepareRound() {
+	r.Quest = models.Quest{
+		ID:       fmt.Sprintf("quest-%d", r.round),
+		Question: fmt.Sprintf("What is the answer to question %d?", r.round),
+		Answer:   "IDK",
+	}
+}
+
+func (r *Room) RoomTimer() {
+
+	for r.round <= r.maxRounds {
+
+		r.prepareRound()
+		r.startGame()
+
+		ticker := time.NewTicker(1 * time.Second)
+
+		remaining := r.timer
+
+	roundLoop:
+		for {
+			select {
+			case <-ticker.C:
+				remaining--
+
+				if remaining <= 0 {
+					ticker.Stop()
+					r.ProcessDuelResults()
+					break roundLoop
+				}
+
+				if r.hasAllPlayersAnswered() {
+					ticker.Stop()
+					r.ProcessDuelResults()
+					break roundLoop
+				}
+
+			case <-r.stopTimer:
+				ticker.Stop()
+				return
+			}
+		}
+
+		r.round++
+		r.resetRoundState()
+	}
+
+	intermission := time.NewTimer(5 * time.Second)
+	select {
+	case <-intermission.C:
+	case <-r.stopTimer:
+		intermission.Stop()
+		return
+	}
+
+	r.endDuel()
 }
 
 func (r *Room) getPlayerInfo() []map[string]interface{} {
@@ -132,31 +205,13 @@ func (r *Room) ProcessDuelResults() {
 	// log in database
 }
 
-func (r *Room) NextDuel() {
-	if r.Status != "active" {
-		return
+func (r *Room) resetRoundState() {
+	for _, player := range r.Players {
+		player.ClearAnswer()
 	}
-
-	if !r.AreAllPlayersReady() {
-		return
-	}
-
-	if r.counter >= 5 {
-		r.CompleteDuel()
-		return
-	}
-
-	r.Quest = models.Quest{
-		ID:       fmt.Sprintf("quest-%d", r.counter),
-		Question: fmt.Sprintf("What is %d + %d?", r.counter, r.counter*2),
-		Answer:   fmt.Sprintf("%d", r.counter*3),
-	}
-
-	r.counter++
-	r.StartGame()
 }
 
-func (r *Room) CompleteDuel() error {
+func (r *Room) endDuel() error {
 	// log to database
 	r.Status = "completed"
 	for _, player := range r.Players {

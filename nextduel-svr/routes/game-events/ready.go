@@ -15,9 +15,5 @@ func HandleReadyPlayer(ctx *server.Context, player *models.Player, data any) {
 
 	room.SetPlayerReady(player.ID)
 	ctx.SendWSResponse([]*models.Player{player}, "player_ready", "ok")
-
-	if room.AreAllPlayersReady() {
-		room.StartGame()
-		return
-	}
+	room.TryStartGame()
 }
