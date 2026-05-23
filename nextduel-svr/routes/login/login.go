@@ -16,17 +16,17 @@ func LoginHandler(ctx *server.Context) error {
 	var req LoginRequest
 	err := ctx.GetRequestBodyAs(&req)
 	if err != nil {
-		return ctx.Error(http.StatusBadRequest, "Invalid request body")
+		return ctx.Error(http.StatusBadRequest, "Invalid request body", err)
 	}
 
 	var user models.User
 	err = ctx.DB().Where("username = ?", req.Username).First(&user).Error
 	if err != nil {
-		return ctx.Error(http.StatusUnauthorized, "Invalid username or password")
+		return ctx.Error(http.StatusUnauthorized, "Invalid username or password", err)
 	}
 
 	if !utils.CheckPassword(user.Password, req.Password) {
-		return ctx.Error(http.StatusUnauthorized, "Invalid username or password")
+		return ctx.Error(http.StatusUnauthorized, "Invalid username or password", err)
 	}
 
 	ctx.LoginSuccess(user.Username)
@@ -34,6 +34,6 @@ func LoginHandler(ctx *server.Context) error {
 	if redirect == "" {
 		redirect = "/"
 	}
-	ctx.Redirect(redirect, http.StatusFound)
+	ctx.Redirect(redirect)
 	return nil
 }

@@ -8,7 +8,7 @@ import (
 	"io"
 )
 
-var key = []byte("nextduel_4444333_jasdwkkwerklsdfoprrr")
+var key = []byte("mysecretkey12345") // 16 bytes for AES-128
 
 func Encrypt(data string) string {
 	block, err := aes.NewCipher(key)

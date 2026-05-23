@@ -49,3 +49,15 @@ func (m *Matchmaking) IsPlayerInQueue(player *models.Player) bool {
 	}
 	return false
 }
+
+func (m *Matchmaking) RemovePlayer(playerID string) bool {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	for i, p := range m.Queue {
+		if p.ID == playerID {
+			m.Queue = append(m.Queue[:i], m.Queue[i+1:]...)
+			return true
+		}
+	}
+	return false
+}

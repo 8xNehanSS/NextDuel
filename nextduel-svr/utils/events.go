@@ -15,10 +15,11 @@ const (
 	GameActionQueueCount   GameAction = "queue_count"
 
 	// Room
-	GameActionRoomCreated  GameAction = "room_created"
-	GameActionRoomJoined   GameAction = "room_joined"
-	GameActionPlayerJoined GameAction = "player_joined"
-	GameActionPlayerLeft   GameAction = "player_left"
+	GameActionRoomCreated   GameAction = "room_created"
+	GameActionRoomJoined    GameAction = "room_joined"
+	GameActionPlayerJoined  GameAction = "player_joined"
+	GameActionPlayerLeft    GameAction = "player_left"
+	GameActionRoomDestroyed GameAction = "room_destroyed"
 
 	// Match Lifecycle
 	GameActionDuelStart    GameAction = "duel_start"

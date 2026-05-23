@@ -98,3 +98,46 @@ func (gm *GameManager) GetRoomByID(roomID string) (*Room, bool) {
 	room, exists := gm.rooms[roomID]
 	return room, exists
 }
+
+func (gm *GameManager) HandlePlayerDisconnect(player *models.Player) {
+	if player == nil {
+		return
+	}
+
+	gm.matchmaker.RemovePlayer(player.ID)
+
+	room, inRoom := gm.GetRoomByPlayerID(player.ID)
+	if !inRoom {
+		return
+	}
+
+	delete(gm.playerRooms, player.ID)
+	delete(room.Players, player.ID)
+	delete(room.Scores, player.ID)
+
+	opponent := room.GetOpponent(player.ID)
+	if opponent != nil {
+		if opponent.Conn != nil {
+			opponent.Conn.WriteJSON(map[string]any{
+				"type":    utils.GameActionPlayerLeft,
+				"payload": player.ID,
+			})
+			opponent.Conn.WriteJSON(map[string]any{
+				"type": utils.GameActionRoomDestroyed,
+				"payload": map[string]any{
+					"room_id":   room.ID,
+					"player_id": player.ID,
+				},
+			})
+		}
+
+		select {
+		case room.stopTimer <- struct{}{}:
+		default:
+		}
+
+		delete(gm.playerRooms, opponent.ID)
+	}
+
+	delete(gm.rooms, room.ID)
+}

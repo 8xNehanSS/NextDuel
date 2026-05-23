@@ -1,5 +1,7 @@
 // httpClient.ts
 
+import { navigationService } from "./navigationService";
+
 type HttpMethod = "GET" | "POST" | "PUT" | "DELETE" | "PATCH";
 
 interface RequestOptions<TBody = unknown> {
@@ -67,6 +69,12 @@ async function request<TResponse, TBody = unknown>(
     data = await res.json();
   } catch {
     data = null;
+  }
+
+  if (res.status == 303) {
+    if (data && typeof data.redirect === "string") {
+      navigationService.go(data.redirect);
+    }
   }
 
   if (!res.ok) {

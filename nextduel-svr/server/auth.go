@@ -65,7 +65,8 @@ func NewLoginToken(userID string) string {
 	builder.WriteString(userID)
 	builder.WriteString("~")
 	builder.WriteString(strconv.FormatInt(time.Now().Unix(), 10))
-	encoded := utils.Encrypt(builder.String())
+	code := builder.String()
+	encoded := utils.Encrypt(code)
 	return encoded
 }
 

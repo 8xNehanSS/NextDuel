@@ -26,6 +26,8 @@ export const GameAction = {
   CREATE_ROOM: "create_room",
   ROOM_CREATED: "room_created",
 
+  ROOM_DESTROYED: "room_destroyed",
+
   JOIN_ROOM: "join_room",
   ROOM_JOINED: "room_joined",
 

@@ -43,6 +43,7 @@ func WSHandler(ctx *server.Context) error {
 func readLoop(ctx *server.Context, player *models.Player) {
 
 	defer func() {
+		ctx.Game().HandlePlayerDisconnect(player)
 		player.Conn.Close()
 		log.Println("Player disconnected:", player.ID)
 	}()

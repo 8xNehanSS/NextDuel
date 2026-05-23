@@ -18,7 +18,7 @@ const LobbyPage = () => {
     }
 
     return (
-        <div className="flex flex-col items-center justify-center h-screen gap-3">
+        <div className="flex flex-col items-center justify-center gap-3 mt-4">
             <p className="text-lg text-gray-600">Welcome to the lobby! Here you can join or create a game.</p>
             {gameState === "waiting" && <p className="text-lg text-gray-600 mt-4">Waiting for other players to join...</p>}
             {gameState === "none" && (

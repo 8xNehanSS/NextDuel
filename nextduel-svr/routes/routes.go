@@ -8,6 +8,7 @@ import (
 	"nextduel-svr/routes/health"
 	"nextduel-svr/routes/login"
 	"nextduel-svr/routes/register"
+	"nextduel-svr/routes/user"
 	"nextduel-svr/server"
 	"nextduel-svr/utils"
 )
@@ -16,7 +17,7 @@ func RegisterRoutes(s *server.Server) {
 	mux := s.Router()
 
 	// HTML File server
-	fileServer := http.FileServer(http.Dir("./web/dist"))
+	fileServer := http.FileServer(http.Dir("./htmls"))
 	mux.Handle("/", fileServer)
 
 	// api routes
@@ -31,6 +32,8 @@ func RegisterRoutes(s *server.Server) {
 
 func registerPrivateRoutes(s *server.Server, mux *http.ServeMux) {
 	mux.Handle("GET /health", s.AuthMiddleware(health.HealthHandler))
+	mux.Handle("GET /user", s.AuthMiddleware(user.GetUser))
+	mux.Handle("POST /logout", s.AuthMiddleware(login.HandleLogout))
 }
 
 func registerPublicRoutes(s *server.Server, mux *http.ServeMux) {

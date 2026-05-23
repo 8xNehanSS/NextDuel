@@ -17,20 +17,20 @@ func RegisterUser(ctx *server.Context) error {
 	var req RegisterRequest
 	err := ctx.GetRequestBodyAs(&req)
 	if err != nil {
-		return ctx.Error(http.StatusBadRequest, "Invalid request body")
+		return ctx.Error(http.StatusBadRequest, "Invalid request body", err)
 	}
 
 	if !verifyUsername(ctx, req.Username) {
-		return ctx.Error(http.StatusBadRequest, "Username already exists")
+		return ctx.Error(http.StatusBadRequest, "Username already exists", err)
 	}
 
 	if !verifyEmail(ctx, req.Email) {
-		return ctx.Error(http.StatusBadRequest, "Email already exists")
+		return ctx.Error(http.StatusBadRequest, "Email already exists", err)
 	}
 
 	hashedPassword, err := utils.HashPassword(req.Password)
 	if err != nil {
-		return ctx.Error(http.StatusInternalServerError, "Failed to hash password")
+		return ctx.Error(http.StatusInternalServerError, "Failed to hash password", err)
 	}
 
 	user := models.User{
@@ -42,7 +42,7 @@ func RegisterUser(ctx *server.Context) error {
 	}
 
 	if err := ctx.DB().Create(&user).Error; err != nil {
-		return ctx.Error(http.StatusInternalServerError, "Failed to create user")
+		return ctx.Error(http.StatusInternalServerError, "Failed to create user", err)
 	}
 
 	ctx.Created(user)

@@ -153,10 +153,12 @@ func (ctx *Context) NoContent() error {
 	return nil
 }
 
-func (ctx *Context) Error(status int, message string) error {
+func (ctx *Context) Error(status int, message string, err error) error {
+	log.Printf("Error: %s - %v", message, err)
 	return ctx.JSON(status, map[string]any{
 		"success": false,
 		"error":   message,
+		"stack":   err.Error(),
 	})
 }
 
@@ -168,35 +170,35 @@ func (ctx *Context) Fail(message string) error {
 }
 
 func (ctx *Context) BadRequest(message string) error {
-	return ctx.Error(http.StatusBadRequest, message)
+	return ctx.Error(http.StatusBadRequest, message, nil)
 }
 
 func (ctx *Context) Unauthorized(message string) error {
 	if message == "" {
 		message = "unauthorized"
 	}
-	return ctx.Error(http.StatusUnauthorized, message)
+	return ctx.Error(http.StatusUnauthorized, message, nil)
 }
 
 func (ctx *Context) Forbidden(message string) error {
 	if message == "" {
 		message = "forbidden"
 	}
-	return ctx.Error(http.StatusForbidden, message)
+	return ctx.Error(http.StatusForbidden, message, nil)
 }
 
 func (ctx *Context) NotFound(message string) error {
 	if message == "" {
 		message = "not found"
 	}
-	return ctx.Error(http.StatusNotFound, message)
+	return ctx.Error(http.StatusNotFound, message, nil)
 }
 
 func (ctx *Context) InternalError(message string) error {
 	if message == "" {
 		message = "internal server error"
 	}
-	return ctx.Error(http.StatusInternalServerError, message)
+	return ctx.Error(http.StatusInternalServerError, message, nil)
 }
 
 func (ctx *Context) GetRequestBodyAs(dest any) error {
@@ -219,9 +221,9 @@ func (ctx *Context) SetHeader(key, value string) {
 	ctx.writer.Header().Set(key, value)
 }
 
-func (ctx *Context) Redirect(url string, status int) error {
-	return ctx.JSON(status, map[string]any{
-		"success":  false,
+func (ctx *Context) Redirect(url string) error {
+	return ctx.JSON(http.StatusSeeOther, map[string]any{
+		"success":  true,
 		"redirect": url,
 	})
 }

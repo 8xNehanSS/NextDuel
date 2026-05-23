@@ -51,5 +51,10 @@ export const handlers: Partial<Record<GameAction, Handler>> = {
   },
   intermission_timer_update: (payload) => {
     useGameStore.getState().setTimer(payload);
-  }
+  },
+  room_destroyed: (payload) => {
+    console.warn("Room destroyed:", payload);
+    useGameStore.getState().resetGame();
+    navigationService.go("/lobby");
+  },
 };

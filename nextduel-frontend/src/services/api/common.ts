@@ -1,5 +1,11 @@
 import { api } from "../../utils/apiclient";
 
+export interface ServerResponse<T> {
+    success: boolean;
+    message?: string;
+    data?: T;
+}
+
 export interface ServerStatistics {
     rooms: number;
     queue: number;
@@ -22,4 +28,17 @@ export interface LoginRequest {
 
 export async function login(request: LoginRequest) {
     await api.post("/login", request);
+}
+
+export interface UserRequest {
+    username: string;
+}
+
+export async function getUser(): Promise<UserRequest> {
+    const response = await api.get("/user") as ServerResponse<UserRequest>;
+    return response.data as UserRequest;
+}
+
+export async function logout() {
+    await api.post("/logout");
 }

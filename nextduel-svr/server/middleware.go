@@ -12,13 +12,13 @@ func (s *Server) AuthMiddleware(next Handler) http.Handler {
 
 		token, err := r.Cookie("NEXT-DUEL")
 		if err != nil || token.Value == "" {
-			ctx.Redirect("/login", http.StatusTemporaryRedirect)
+			ctx.Redirect("/login")
 			return
 		}
 
 		userID, valid := validateSession(token.Value)
 		if !valid {
-			ctx.Redirect("/login", http.StatusTemporaryRedirect)
+			ctx.Redirect("/login")
 			return
 		}
 
@@ -40,13 +40,17 @@ func (s *Server) WsMiddleware(next Handler) http.Handler {
 		log.Printf("WS START [%s] %s", r.Method, r.URL.Path)
 		ctx := NewUnauthenticatedContext(w, r, s.GetDbConnection(), s.config, s.GetGameManager())
 
-		token := ctx.GetQueryParam("token")
-		if token == "" {
+		token, err := r.Cookie("NEXT-DUEL")
+		if err != nil || token.Value == "" {
+			// ctx.Redirect("/login")
 			return
 		}
 
-		// fake decoded user (replace with JWT later)
-		userID := token
+		userID, valid := validateSession(token.Value)
+		if !valid {
+			// ctx.Redirect("/login")
+			return
+		}
 		ctx.SetAuthenticated(userID)
 		next(ctx)
 		log.Printf("WS END [%s] %s", r.Method, r.URL.Path)

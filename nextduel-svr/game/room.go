@@ -280,3 +280,12 @@ func (r *Room) endDuel() error {
 	}
 	return nil
 }
+
+func (r *Room) broadcast(gameAction utils.GameAction, data any) {
+	for _, player := range r.Players {
+		player.Conn.WriteJSON(map[string]interface{}{
+			"type":    gameAction,
+			"payload": data,
+		})
+	}
+}
