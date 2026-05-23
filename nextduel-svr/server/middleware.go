@@ -16,8 +16,12 @@ func (s *Server) AuthMiddleware(next Handler) http.Handler {
 			return
 		}
 
-		// fake decoded user (replace with JWT later)
-		userID := "nehan"
+		userID, valid := validateSession(token.Value)
+		if !valid {
+			ctx.Redirect("/login", http.StatusTemporaryRedirect)
+			return
+		}
+
 		ctx.SetAuthenticated(userID)
 		next(ctx)
 		log.Printf("REQUEST END [%s] %s", r.Method, r.URL.Path)

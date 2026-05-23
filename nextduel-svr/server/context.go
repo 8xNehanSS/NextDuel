@@ -77,8 +77,17 @@ func (ctx *Context) ClearAuthentication() {
 
 func (ctx *Context) LoginSuccess(userID string) {
 	ctx.SetAuthenticated(userID)
-	// generate and set cookie (for demo, using a fake token)
-	ctx.setCookie("NEXT-DUEL", "fake-token-for-"+userID)
+	token := NewLoginToken(userID)
+	handleNewToken(token)
+	ctx.setCookie("NEXT-DUEL", token)
+}
+
+func (ctx *Context) Logout() {
+	token, err := ctx.request.Cookie("NEXT-DUEL")
+	if err == nil && token.Value != "" {
+		handleTokenRemove(token.Value)
+		ctx.setCookie("NEXT-DUEL", "")
+	}
 }
 
 func (ctx *Context) setCookie(name, value string) {
@@ -210,8 +219,11 @@ func (ctx *Context) SetHeader(key, value string) {
 	ctx.writer.Header().Set(key, value)
 }
 
-func (ctx *Context) Redirect(url string, status int) {
-	http.Redirect(ctx.writer, ctx.request, url, status)
+func (ctx *Context) Redirect(url string, status int) error {
+	return ctx.JSON(status, map[string]any{
+		"success":  false,
+		"redirect": url,
+	})
 }
 
 func (ctx *Context) Request() *http.Request {
