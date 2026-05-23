@@ -14,17 +14,17 @@ func HandleJoinQueue(ctx *server.Context, player *models.Player, data any) {
 		return
 	}
 	if matched {
-		ctx.SendWSResponse([]*models.Player{player}, utils.GameActionJoinQueue, "matched")
-		ctx.SendWSResponse(room.GetPlayers(), utils.GameActionCreateRoom, room.ID)
+		ctx.SendWSResponse(room.GetPlayers(), utils.GameActionMatchFound, nil)
+		ctx.SendWSResponse(room.GetPlayers(), utils.GameActionRoomCreated, room.ID)
 	} else {
-		ctx.SendWSResponse([]*models.Player{player}, utils.GameActionJoinQueue, "waiting")
+		ctx.SendWSResponse([]*models.Player{player}, utils.GameActionWaitingQueue, nil)
 	}
 }
 
 func HandleCreateRoom(ctx *server.Context, player *models.Player, data any) {
 	game := ctx.Game()
 	room := game.CreateRoom(player)
-	ctx.SendWSResponse([]*models.Player{player}, utils.GameActionCreateRoom, room.ID)
+	ctx.SendWSResponse([]*models.Player{player}, utils.GameActionRoomCreated, room.ID)
 }
 
 func HandleJoinRoom(ctx *server.Context, player *models.Player, data any) {
@@ -44,6 +44,6 @@ func HandleJoinRoom(ctx *server.Context, player *models.Player, data any) {
 		ctx.SendWSResponse([]*models.Player{player}, utils.GameActionError, err.Error())
 		return
 	}
-	ctx.SendWSResponse([]*models.Player{player}, utils.GameActionJoinRoom, room.ID)
+	ctx.SendWSResponse([]*models.Player{player}, utils.GameActionRoomJoined, room.ID)
 	ctx.SendWSResponse(room.GetPlayers(), utils.GameActionPlayerJoined, room.ID)
 }

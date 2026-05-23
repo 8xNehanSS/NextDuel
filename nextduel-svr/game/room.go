@@ -14,10 +14,13 @@ type Room struct {
 	Quest   models.Quest
 	Status  string
 
-	round     int
-	maxRounds int
-	timer     uint
-	stopTimer chan struct{}
+	round             int
+	maxRounds         int
+	timer             uint
+	intermissionTimer int
+	fastDuelTimer     int
+	onFastDuel        bool
+	stopTimer         chan struct{}
 }
 
 func NewRoom(p1, p2 *models.Player) *Room {
@@ -32,11 +35,14 @@ func NewRoom(p1, p2 *models.Player) *Room {
 			p1.ID: 0,
 			p2.ID: 0,
 		},
-		Status:    "created",
-		round:     1,
-		maxRounds: 5,
-		timer:     30,
-		stopTimer: make(chan struct{}),
+		Status:            "created",
+		round:             1,
+		maxRounds:         5,
+		timer:             61,
+		intermissionTimer: 6,
+		fastDuelTimer:     11,
+		onFastDuel:        false,
+		stopTimer:         make(chan struct{}),
 	}
 }
 
@@ -53,10 +59,12 @@ func (r *Room) startGame() {
 	for _, player := range r.Players {
 		player.ClearAnswer()
 		player.Conn.WriteJSON(map[string]interface{}{
-			"type":    utils.GameActionDuelStart,
-			"quest":   r.Quest.Question,
-			"round":   r.round,
-			"players": r.getPlayerInfo(),
+			"type": utils.GameActionDuelStart,
+			"payload": map[string]interface{}{
+				"quest":   r.Quest.Question,
+				"round":   r.round,
+				"players": r.getPlayerInfo(),
+			},
 		})
 	}
 }
@@ -72,7 +80,6 @@ func (r *Room) prepareRound() {
 func (r *Room) RoomTimer() {
 
 	for r.round <= r.maxRounds {
-
 		r.prepareRound()
 		r.startGame()
 
@@ -84,7 +91,12 @@ func (r *Room) RoomTimer() {
 		for {
 			select {
 			case <-ticker.C:
+				if r.onFastDuel && remaining > uint(r.fastDuelTimer) {
+					remaining = uint(r.fastDuelTimer)
+				}
+
 				remaining--
+				r.broadcastRoundTime(remaining)
 
 				if remaining <= 0 {
 					ticker.Stop()
@@ -104,19 +116,63 @@ func (r *Room) RoomTimer() {
 			}
 		}
 
+		ticker.Stop()
 		r.round++
 		r.resetRoundState()
-	}
 
-	intermission := time.NewTimer(5 * time.Second)
-	select {
-	case <-intermission.C:
-	case <-r.stopTimer:
-		intermission.Stop()
-		return
+		r.intermissionStart()
+
+		intermission := r.intermissionTimer
+		interTicker := time.NewTicker(1 * time.Second)
+
+	intermissionLoop:
+		for {
+			select {
+			case <-interTicker.C:
+
+				intermission--
+				r.broadcastIntermissionTime(intermission)
+
+				if intermission <= 0 {
+					interTicker.Stop()
+					break intermissionLoop
+				}
+
+			case <-r.stopTimer:
+				interTicker.Stop()
+				return
+			}
+		}
 	}
 
 	r.endDuel()
+}
+
+func (r *Room) intermissionStart() {
+	for _, player := range r.Players {
+		player.Conn.WriteJSON(map[string]interface{}{
+			"type":    utils.GameActionIntermission,
+			"payload": nil,
+		})
+	}
+}
+
+func (r *Room) broadcastRoundTime(remaining uint) {
+	for _, player := range r.Players {
+		player.Conn.WriteJSON(map[string]interface{}{
+			"type":    utils.GameActionTimerUpdate,
+			"payload": remaining,
+		})
+	}
+}
+
+func (r *Room) broadcastIntermissionTime(remaining int) {
+	for _, player := range r.Players {
+		player.Conn.WriteJSON(map[string]interface{}{
+			"type":    utils.GameActionIntermissionTimerUpdate,
+			"payload": remaining,
+		})
+	}
 }
 
 func (r *Room) getPlayerInfo() []map[string]interface{} {
@@ -183,6 +239,7 @@ func (r *Room) AnswerDuel(playerID string, data interface{}) (bool, error) {
 			return false, fmt.Errorf("player has already answered")
 		}
 		player.SetAnswer(data)
+		r.onFastDuel = true
 	}
 	hasAllAnswered := r.hasAllPlayersAnswered()
 	if !hasAllAnswered {
@@ -206,6 +263,7 @@ func (r *Room) ProcessDuelResults() {
 }
 
 func (r *Room) resetRoundState() {
+	r.onFastDuel = false
 	for _, player := range r.Players {
 		player.ClearAnswer()
 	}
@@ -217,7 +275,7 @@ func (r *Room) endDuel() error {
 	for _, player := range r.Players {
 		player.Conn.WriteJSON(map[string]interface{}{
 			"type":    utils.GameActionGameOver,
-			"players": r.getPlayerInfo(),
+			"payload": r.getPlayerInfo(),
 		})
 	}
 	return nil

@@ -1,6 +1,8 @@
 import type { GameAction } from "./events";
 import { handlers } from "./handler";
 
+const random4DigitId = () => Math.floor(1000 + Math.random() * 9000).toString();
+
 type ServerMessage<T = any> = {
     type: GameAction;
     payload: T;
@@ -18,7 +20,7 @@ class SocketManager {
         if (this.connecting) return this.connecting;
 
         this.connecting = new Promise((resolve) => {
-            this.socket = new WebSocket("/ws?token=123");
+            this.socket = new WebSocket(`/ws?token=${random4DigitId()}`);
             this.socket.onopen = () => {
                 console.log("Connected");
                 resolve();
