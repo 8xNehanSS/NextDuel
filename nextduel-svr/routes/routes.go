@@ -17,8 +17,7 @@ func RegisterRoutes(s *server.Server) {
 	mux := s.Router()
 
 	// HTML File server
-	fileServer := http.FileServer(http.Dir("./htmls"))
-	mux.Handle("/", fileServer)
+	mux.Handle("/", spaFileServer(http.Dir("./htmls")))
 
 	// api routes
 	apiMux := http.NewServeMux()
@@ -66,4 +65,20 @@ func registerWSHandlers(ctx *server.Context, player *models.Player, msg WSMessag
 	default:
 		log.Println("Unknown message:", msg.Type)
 	}
+}
+
+func spaFileServer(root http.FileSystem) http.Handler {
+	fs := http.FileServer(root)
+
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		path := r.URL.Path
+
+		_, err := root.Open(path)
+		if err == nil {
+			fs.ServeHTTP(w, r)
+			return
+		}
+
+		http.ServeFile(w, r, "./htmls/index.html")
+	})
 }
