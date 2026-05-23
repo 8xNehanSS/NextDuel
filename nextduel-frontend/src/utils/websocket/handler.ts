@@ -29,7 +29,7 @@ export const handlers: Partial<Record<GameAction, Handler>> = {
     console.log("Player ready:", payload);
   },
   duel_start: (payload) => {
-    const { quest, round, players } = payload as GameStart;
+    const { quest, round } = payload as GameStart;
     useGameStore.getState().setPhase("started");
     useGameStore.getState().setRound(round);
     useGameStore.getState().setQuestion({
@@ -46,7 +46,7 @@ export const handlers: Partial<Record<GameAction, Handler>> = {
   timer_update: (payload) => {
     useGameStore.getState().setTimer(payload);
   },
-  intermission: (payload) => {
+  intermission: () => {
     useGameStore.getState().setPhase("intermission");
   },
   intermission_timer_update: (payload) => {

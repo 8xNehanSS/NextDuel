@@ -1,19 +1,24 @@
 package server
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
+	"log"
 	"nextduel-svr/utils"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
 )
 
-const tokenDir = "sessions"
+const tokenDir = "./sessions"
 
 func validateSession(token string) (string, bool) {
 	if !validateToken(token) {
 		return "", false
 	}
+
 	userID, t, valid := ParseLoginToken(token)
 	if !valid {
 		return "", false
@@ -28,36 +33,52 @@ func validateSession(token string) (string, bool) {
 }
 
 func handleNewToken(token string) bool {
-	dir := tokenDir
-	if _, err := os.Stat(dir); os.IsNotExist(err) {
-		os.Mkdir(dir, 0755)
-	}
-
-	// create token file
-	tokenFile := dir + "/" + token
-	f, err := os.Create(tokenFile)
-	if err != nil {
+	if err := os.MkdirAll(tokenDir, 0755); err != nil {
+		log.Println("failed to create session dir:", err)
 		return false
 	}
-	f.Close()
+
+	tokenFile := getTokenFilePath(token)
+
+	f, err := os.Create(tokenFile)
+	if err != nil {
+		log.Println("failed to create token file:", err)
+		return false
+	}
+
+	// ensure data is flushed to disk
+	if err := f.Sync(); err != nil {
+		log.Println("failed to sync token file:", err)
+	}
+
+	if err := f.Close(); err != nil {
+		log.Println("failed to close token file:", err)
+		return false
+	}
 
 	return true
 }
 
 func validateToken(token string) bool {
-	tokenFile := tokenDir + "/" + token
-	if _, err := os.Stat(tokenFile); os.IsNotExist(err) {
-		return false
-	}
-	return true
+	tokenFile := getTokenFilePath(token)
+
+	_, err := os.Stat(tokenFile)
+	return err == nil
 }
 
 func handleTokenRemove(token string) bool {
-	tokenFile := tokenDir + "/" + token
+	tokenFile := getTokenFilePath(token)
+
 	if _, err := os.Stat(tokenFile); os.IsNotExist(err) {
 		return false
 	}
-	return os.Remove(tokenFile) == nil
+
+	if err := os.Remove(tokenFile); err != nil {
+		log.Println("failed to remove token file:", err)
+		return false
+	}
+
+	return true
 }
 
 func NewLoginToken(userID string) string {
@@ -65,24 +86,27 @@ func NewLoginToken(userID string) string {
 	builder.WriteString(userID)
 	builder.WriteString("~")
 	builder.WriteString(strconv.FormatInt(time.Now().Unix(), 10))
+
 	code := builder.String()
-	encoded := utils.Encrypt(code)
-	return encoded
+	return utils.Encrypt(code)
 }
 
 func ParseLoginToken(token string) (string, time.Time, bool) {
 	decoded := utils.Decrypt(token)
+
 	parts := strings.Split(decoded, "~")
 	if len(parts) != 2 {
 		return "", time.Time{}, false
 	}
+
 	userID := parts[0]
+
 	timestamp, err := strconv.ParseInt(parts[1], 10, 64)
 	if err != nil {
 		return "", time.Time{}, false
 	}
-	t := time.Unix(timestamp, 0)
-	return userID, t, true
+
+	return userID, time.Unix(timestamp, 0), true
 }
 
 func NewGameToken(gameID string) string {
@@ -90,6 +114,15 @@ func NewGameToken(gameID string) string {
 	builder.WriteString(gameID)
 	builder.WriteString("~")
 	builder.WriteString(strconv.FormatInt(time.Now().Unix(), 10))
-	encoded := utils.Encrypt(builder.String())
-	return encoded
+
+	return utils.Encrypt(builder.String())
+}
+
+func getTokenFilePath(token string) string {
+	return filepath.Join(tokenDir, safeTokenFilename(token))
+}
+
+func safeTokenFilename(token string) string {
+	sum := sha256.Sum256([]byte(token))
+	return hex.EncodeToString(sum[:])
 }
