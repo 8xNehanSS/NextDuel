@@ -5,6 +5,7 @@ import Homepage from "./pages/home/page";
 import Loginpage from "./pages/login/page";
 import LobbyPage from "./pages/lobby/page";
 import GamePage from "./pages/game/page";
+import RegisterPage from "./pages/register/page";
 
 
 const About = () => <div>About Page</div>;
@@ -21,6 +22,7 @@ export default function AppRoutes() {
             <Route path="/" element={<Homepage />} />
             <Route path="/about" element={<About />} />
             <Route path="/login" element={<Loginpage />} />
+            <Route path="/register" element={<RegisterPage />} />
             <Route path="/lobby" element={<LobbyPage />} />
             <Route path="/game" element={<GamePage />} />
 

@@ -1,4 +1,5 @@
 import { api } from "../../utils/apiclient";
+import { navigationService } from "../../utils/navigationService";
 
 export interface ServerResponse<T> {
     success: boolean;
@@ -41,4 +42,19 @@ export async function getUser(): Promise<UserRequest> {
 
 export async function logout() {
     await api.post("/logout");
+}
+
+export interface RegisterRequest {
+    username: string;
+    password: string;
+    email: string;
+}
+
+export async function register(request: RegisterRequest) {
+    const response = await api.post("/register", request) as ServerResponse<any>;
+    if (!response.success) {
+        throw new Error(response.message);
+    } else {
+        navigationService.go("/login");
+    }
 }
