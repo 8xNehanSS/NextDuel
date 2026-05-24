@@ -95,8 +95,9 @@ func (ctx *Context) setCookie(name, value string) {
 		Name:     name,
 		Value:    value,
 		Path:     "/",
-		SameSite: http.SameSiteNoneMode,
-		Secure:   true,
+		SameSite: http.SameSiteLaxMode,
+		Secure:   false,
+		HttpOnly: true,
 	})
 }
 
