@@ -6,10 +6,15 @@ const LoginPage = () => {
         username: "",
         password: "",
     });
+    const [error, setError] = useState<string | null>(null);
 
     async function handleLogin() {
-        if (loginData.username && loginData.password) {
+        if (!loginData.username || !loginData.password) return;
+        setError(null);
+        try {
             await login(loginData);
+        } catch {
+            setError("Invalid username or password");
         }
     }
 
@@ -49,6 +54,10 @@ const LoginPage = () => {
                         className="w-full px-4 py-3 border border-gray-300 rounded-lg 
                                    focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                     />
+
+                    {error && (
+                        <p className="text-red-500 text-sm text-center">{error}</p>
+                    )}
 
                     <button
                         onClick={handleLogin}

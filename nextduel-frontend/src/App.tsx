@@ -4,9 +4,10 @@ import Navigator from "./components/navigator";
 import { useEffect } from "react";
 import { useUserStore } from "./store/userStore";
 import { getUser } from "./services/api/common";
-  
+
 function AppContent() {
-  const userStore = useUserStore();
+  const setUser = useUserStore((state) => state.setUser);
+  const setAuthChecked = useUserStore((state) => state.setAuthChecked);
 
   useEffect(() => {
     loadUser();
@@ -16,10 +17,12 @@ function AppContent() {
     try {
       const user = await getUser();
       if (user && user.username) {
-        userStore.setUser(user.username);
+        setUser(user.username);
+      } else {
+        setAuthChecked();
       }
-    } catch (error) {
-      console.error("Failed to load user:", error);
+    } catch {
+      setAuthChecked();
     }
   }
 

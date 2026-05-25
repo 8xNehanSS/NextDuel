@@ -10,8 +10,9 @@ const Navigator = () => {
 
     async function handleSignOut() {
         try {
-            await logout();
             userStore.clearUser();
+            await logout();
+            navigationService.go("/login");
         } catch (error) {
             console.error("Failed to sign out:", error);
         }

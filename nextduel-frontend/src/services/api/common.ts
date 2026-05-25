@@ -1,5 +1,6 @@
 import { api } from "../../utils/apiclient";
 import { navigationService } from "../../utils/navigationService";
+import { useUserStore } from "../../store/userStore";
 
 export interface ServerResponse<T> {
     success: boolean;
@@ -27,8 +28,18 @@ export interface LoginRequest {
     password: string;
 }
 
-export async function login(request: LoginRequest) {
-    await api.post("/login", request);
+export async function login(request: LoginRequest): Promise<void> {
+    const redirectParam = new URLSearchParams(window.location.search).get("redirect");
+    let ep = "/login";
+    if (redirectParam) {
+        ep += `?redirect=${encodeURIComponent(redirectParam)}`;
+    }
+    const response = await api.post<{ success: boolean; redirect?: string }>(ep, request);
+    const user = await getUser();
+    if (user?.username) {
+        useUserStore.getState().setUser(user.username);
+    }
+    navigationService.go(response?.redirect || redirectParam || "/");
 }
 
 export interface UserRequest {
