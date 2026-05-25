@@ -4,10 +4,8 @@ import Navigator from "./components/navigator";
 import { useEffect } from "react";
 import { useUserStore } from "./store/userStore";
 import { getUser } from "./services/api/common";
-
-
-export default function App() {
-
+  
+function AppContent() {
   const userStore = useUserStore();
 
   useEffect(() => {
@@ -17,19 +15,26 @@ export default function App() {
   async function loadUser() {
     try {
       const user = await getUser();
-      userStore.setUsername(user.username);
-      userStore.setLoggedIn(true);
+      if (user && user.username) {
+        userStore.setUser(user.username);
+      }
     } catch (error) {
       console.error("Failed to load user:", error);
     }
   }
 
   return (
+    <div className="App">
+      <Navigator />
+      <AppRoutes />
+    </div>
+  );
+}
+
+export default function App() {
+  return (
     <BrowserRouter>
-      <div className="App">
-        <Navigator />
-        <AppRoutes />
-      </div>
+      <AppContent />
     </BrowserRouter>
   );
 }

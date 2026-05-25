@@ -1,3 +1,4 @@
+import { Link } from "react-router";
 import { logout } from "../services/api/common";
 import { useUserStore } from "../store/userStore";
 import { navigationService } from "../utils/navigationService";
@@ -31,21 +32,21 @@ const Navigator = () => {
                 {/* Left - Links */}
                 <ul className="flex items-center gap-6 text-sm font-medium">
                     <li>
-                        <a
-                            href="/"
+                        <Link
+                            to="/"
                             className="hover:underline transition"
                         >
                             Home
-                        </a>
+                        </Link>
                     </li>
 
                     <li>
-                        <a
-                            href="/lobby"
+                        <Link
+                            to="/lobby"
                             className="hover:underline transition"
                         >
                             Lobby
-                        </a>
+                        </Link>
                     </li>
                 </ul>
 
