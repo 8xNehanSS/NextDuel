@@ -1,6 +1,7 @@
 import { api } from "../../utils/apiclient";
 import { navigationService } from "../../utils/navigationService";
 import { useUserStore } from "../../store/userStore";
+import { appEventBus } from "../../utils/eventbus";
 
 export interface ServerResponse<T> {
     success: boolean;
@@ -39,6 +40,7 @@ export async function login(request: LoginRequest): Promise<void> {
     if (user?.username) {
         useUserStore.getState().setUser(user.username);
     }
+    appEventBus.fire("notification", { message: "Logged in successfully", type: "success" });
     navigationService.go(response?.redirect || redirectParam || "/");
 }
 

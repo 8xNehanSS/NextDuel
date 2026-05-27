@@ -4,6 +4,8 @@ import Navigator from "./components/navigator";
 import { useEffect } from "react";
 import { useUserStore } from "./store/userStore";
 import { getUser } from "./services/api/common";
+import Notifier from "./components/notifier";
+import { appEventBus } from "./utils/eventbus";
 
 function AppContent() {
   const setUser = useUserStore((state) => state.setUser);
@@ -21,13 +23,15 @@ function AppContent() {
       } else {
         setAuthChecked();
       }
-    } catch {
+    } catch (error) {
+      appEventBus.fire("notification", { message: "Failed to load user data", type: "error", description: (error as Error).message   });
       setAuthChecked();
     }
   }
 
   return (
     <div className="App">
+      <Notifier />
       <Navigator />
       <AppRoutes />
     </div>
