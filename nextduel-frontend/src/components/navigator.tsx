@@ -27,67 +27,39 @@ const Navigator = () => {
     }
 
     return (
-        <nav className="w-full shadow-md px-6 py-4">
-            <div className="max-w-6xl mx-auto flex items-center justify-between">
+        <nav className="nav">
+            <div className="nav-inner">
+                <div className="nav-brand">
+                    <span className="brand-mark">ND</span>
+                    <span>NextDuel</span>
+                </div>
 
-                {/* Left - Links */}
-                <ul className="flex items-center gap-6 text-sm font-medium">
+                <ul className="nav-links">
                     <li>
-                        <Link
-                            to="/"
-                            className="hover:underline transition"
-                        >
-                            Home
-                        </Link>
+                        <Link to="/">Home</Link>
                     </li>
-
                     <li>
-                        <Link
-                            to="/lobby"
-                            className="hover:underline transition"
-                        >
-                            Lobby
-                        </Link>
+                        <Link to="/lobby">Lobby</Link>
                     </li>
                 </ul>
 
-                {/* Center - User Info */}
-                <div className="text-sm">
-                    {loggedIn && (
-                        <span>
-                            Welcome, {username}
-                        </span>
-                    )}
-                </div>
-
-                {/* Right - Actions */}
-                <div>
+                <div className="nav-actions">
+                    {loggedIn && <span className="user-pill">{username}</span>}
                     {loggedIn ? (
-                        <button
-                            onClick={handleSignOut}
-                            className="border px-4 py-2 rounded text-sm hover:underline transition"
-                        >
+                        <button onClick={handleSignOut} className="btn btn-ghost">
                             Sign Out
                         </button>
                     ) : (
                         <>
-                            <button
-                                onClick={handleSignIn}
-                                className="border px-4 py-2 rounded text-sm hover:underline transition"
-                            >
+                            <button onClick={handleSignIn} className="btn btn-ghost">
                                 Sign In
                             </button>
-                            <button
-                                onClick={handleRegister}
-                                className="border px-4 py-2 rounded text-sm hover:underline transition"
-                            >
+                            <button onClick={handleRegister} className="btn btn-primary">
                                 Register
                             </button>
                         </>
-
                     )}
                 </div>
-
             </div>
         </nav>
     );

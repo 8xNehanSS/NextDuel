@@ -82,54 +82,22 @@ const Notifier = () => {
     };
 
     return (
-        <div
-            style={{
-                position: "fixed",
-                right: 16,
-                bottom: 16,
-                display: "flex",
-                flexDirection: "column",
-                gap: 8,
-                alignItems: "flex-end",
-                zIndex: 1000,
-            }}
-        >
+        <div className="toast-stack">
             {items.map((item) => (
                 <div
                     key={item.id}
                     role="status"
                     aria-live="polite"
-                    style={{
-                        minWidth: 220,
-                        maxWidth: 320,
-                        padding: "10px 12px",
-                        borderRadius: 10,
-                        color: "#0f172a",
-                        background:
-                            item.type === "success"
-                                ? "#bbf7d0"
-                                : item.type === "error"
-                                ? "#fecaca"
-                                : "#e0f2fe",
-                        boxShadow: "0 6px 18px rgba(15, 23, 42, 0.15)",
-                        fontSize: 14,
-                    }}
+                    className={`toast toast-${item.type}`}
                 >
                     <div style={{ display: "flex", justifyContent: "space-between", gap: 8 }}>
                         <div style={{ fontWeight: 600 }}>{item.message}</div>
-                        <div style={{ display: "flex", gap: 6 }}>
+                        <div className="toast-actions">
                             {item.description && (
                                 <button
                                     type="button"
                                     onClick={() => toggleExpand(item.id)}
-                                    style={{
-                                        border: "none",
-                                        background: "transparent",
-                                        fontSize: 12,
-                                        color: "#1e293b",
-                                        cursor: "pointer",
-                                        padding: 0,
-                                    }}
+                                    className="toast-button"
                                 >
                                     {expandedIds.has(item.id) ? "Hide" : "Expand"}
                                 </button>
@@ -137,14 +105,7 @@ const Notifier = () => {
                             <button
                                 type="button"
                                 onClick={() => dismiss(item.id)}
-                                style={{
-                                    border: "none",
-                                    background: "transparent",
-                                    fontSize: 12,
-                                    color: "#1e293b",
-                                    cursor: "pointer",
-                                    padding: 0,
-                                }}
+                                className="toast-button"
                             >
                                 Close
                             </button>
@@ -158,16 +119,8 @@ const Notifier = () => {
                             <button
                                 type="button"
                                 onClick={() => copyDescription(item.description)}
-                                style={{
-                                    marginTop: 6,
-                                    border: "none",
-                                    background: "#f1f5f9",
-                                    color: "#0f172a",
-                                    fontSize: 12,
-                                    borderRadius: 6,
-                                    padding: "4px 8px",
-                                    cursor: "pointer",
-                                }}
+                                className="toast-button"
+                                style={{ marginTop: 6 }}
                             >
                                 Copy description
                             </button>

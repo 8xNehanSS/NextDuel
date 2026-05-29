@@ -5,7 +5,8 @@ const random4DigitId = () => Math.floor(1000 + Math.random() * 9000).toString();
 
 type ServerMessage<T = any> = {
     type: GameAction;
-    payload: T;
+    payload?: T;
+    data?: T;
 };
 
 class SocketManager {
@@ -54,7 +55,7 @@ class SocketManager {
         this.socket?.send(
             JSON.stringify({
                 type,
-                payload,
+                data: payload,
             })
         );
     }
@@ -67,7 +68,7 @@ class SocketManager {
             return;
         }
 
-        handler(message.payload);
+        handler(message.payload ?? message.data);
     }
 }
 

@@ -6,29 +6,29 @@ import { navigationService } from "../navigationService";
 type Handler = (payload: any) => void;
 
 export const handlers: Partial<Record<GameAction, Handler>> = {
-  error: (payload) => {
+  [GameAction.ERROR]: (payload) => {
     console.error("Error from server:", payload);
   },
-  waiting_queue: () => {
+  [GameAction.WAITING_QUEUE]: () => {
     useGameStore.getState().setPhase("waiting");
   },
-  match_found: () => {
+  [GameAction.MATCH_FOUND]: () => {
     useGameStore.getState().setPhase("matched");
   },
-  room_created: (payload) => {
+  [GameAction.ROOM_CREATED]: (payload) => {
     useGameStore.getState().setRoom(payload);
     navigationService.go("/game");
   },
-  room_joined: (payload) => {
+  [GameAction.ROOM_JOINED]: (payload) => {
     useGameStore.getState().setRoom(payload);
   },
-  player_joined: (payload) => {
+  [GameAction.PLAYER_JOINED]: (payload) => {
     console.log("Player joined:", payload);
   },
-  player_ready: (payload) => {
+  [GameAction.PLAYER_READY]: (payload) => {
     console.log("Player ready:", payload);
   },
-  duel_start: (payload) => {
+  [GameAction.DUEL_START]: (payload) => {
     const { quest, round } = payload as GameStart;
     useGameStore.getState().setPhase("started");
     useGameStore.getState().setRound(round);
@@ -39,20 +39,20 @@ export const handlers: Partial<Record<GameAction, Handler>> = {
     });
     // set player scores
   },
-  game_over: (payload) => {
+  [GameAction.GAME_OVER]: (payload) => {
     useGameStore.getState().setPhase("game_over");
     console.log("Game over:", payload);
   },
-  timer_update: (payload) => {
+  [GameAction.TIMER_UPDATE]: (payload) => {
     useGameStore.getState().setTimer(payload);
   },
-  intermission: () => {
+  [GameAction.INTERMISSION]: () => {
     useGameStore.getState().setPhase("intermission");
   },
-  intermission_timer_update: (payload) => {
+  [GameAction.INTERMISSION_TIMER_UPDATE]: (payload) => {
     useGameStore.getState().setTimer(payload);
   },
-  room_destroyed: (payload) => {
+  [GameAction.ROOM_DESTROYED]: (payload) => {
     console.warn("Room destroyed:", payload);
     useGameStore.getState().resetGame();
     navigationService.go("/lobby");

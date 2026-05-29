@@ -6,6 +6,7 @@ import { useUserStore } from "./store/userStore";
 import { getUser } from "./services/api/common";
 import Notifier from "./components/notifier";
 import { appEventBus } from "./utils/eventbus";
+import "./App.css";
 
 function AppContent() {
   const setUser = useUserStore((state) => state.setUser);

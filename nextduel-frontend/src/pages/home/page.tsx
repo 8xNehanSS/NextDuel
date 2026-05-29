@@ -33,60 +33,49 @@ const Homepage = () => {
         label: string;
         value: string | number;
     }) => (
-        <div className="border rounded-lg p-4 shadow-sm">
+        <div className="stat-card">
             <p className="text-sm">{label}</p>
-            <p className="text-lg font-semibold mt-1">{value}</p>
+            <p className="stat-value">{value}</p>
         </div>
     );
 
     return (
-        <div className="px-6 py-10">
-            <div className="max-w-5xl mx-auto space-y-8">
-
-                <div className="space-y-1">
-                    <p className="text-sm">Welcome to the home page!</p>
+        <div className="page-shell">
+            <div className="hero">
+                <div className="panel hero-card float-in">
+                    <h1 className="hero-title">NextDuel control room</h1>
+                    <p className="section-subtitle">
+                        Keep an eye on live activity and system health before you drop into the arena.
+                    </p>
+                    <div className="hero-actions">
+                        <span className="chip">Live telemetry</span>
+                        <span className="chip chip-warn">Realtime updates</span>
+                    </div>
                 </div>
 
-                {loading && (
-                    <p className="text-sm">Loading server statistics...</p>
-                )}
-
-                {serverStatistics && (
-                    <div className="space-y-4">
-
-                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                            <StatCard
-                                label="Rooms"
-                                value={serverStatistics.rooms}
-                            />
-                            <StatCard
-                                label="Queue"
-                                value={serverStatistics.queue}
-                            />
-                            <StatCard
-                                label="Players"
-                                value={serverStatistics.players}
-                            />
-                            <StatCard
-                                label="Players in Rooms"
-                                value={serverStatistics.players_in_rooms}
-                            />
-                            <StatCard
-                                label="Players in Queue"
-                                value={serverStatistics.players_in_queue}
-                            />
-                            <StatCard
-                                label="Memory Usage"
-                                value={serverStatistics.memory_usage}
-                            />
-                            <StatCard
-                                label="CPU Usage"
-                                value={serverStatistics.cpu_usage}
-                            />
-                        </div>
-                    </div>
-                )}
+                <div className="panel float-in">
+                    <h2 className="section-title" style={{ fontSize: 24 }}>
+                        Status feed
+                    </h2>
+                    <p className="section-subtitle">
+                        Monitor queue flow, room activity, and platform load from a single view.
+                    </p>
+                </div>
             </div>
+
+            {loading && <p className="section-subtitle">Loading server statistics...</p>}
+
+            {serverStatistics && (
+                <div className="stat-grid" style={{ marginTop: 12 }}>
+                    <StatCard label="Rooms" value={serverStatistics.rooms} />
+                    <StatCard label="Queue" value={serverStatistics.queue} />
+                    <StatCard label="Players" value={serverStatistics.players} />
+                    <StatCard label="Players in Rooms" value={serverStatistics.players_in_rooms} />
+                    <StatCard label="Players in Queue" value={serverStatistics.players_in_queue} />
+                    <StatCard label="Memory Usage" value={serverStatistics.memory_usage} />
+                    <StatCard label="CPU Usage" value={serverStatistics.cpu_usage} />
+                </div>
+            )}
         </div>
     );
 };
