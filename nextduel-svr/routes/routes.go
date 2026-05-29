@@ -3,7 +3,7 @@ package routes
 import (
 	"log"
 	"net/http"
-	"nextduel-svr/models"
+	"nextduel-svr/gamepkg"
 	game_events "nextduel-svr/routes/game-events"
 	"nextduel-svr/routes/health"
 	"nextduel-svr/routes/login"
@@ -40,12 +40,12 @@ func registerPublicRoutes(s *server.Server, mux *http.ServeMux) {
 	mux.Handle("POST /register", s.PublicMiddleware(register.RegisterUser))
 }
 
-func registerWSHandlers(ctx *server.Context, player *models.Player, msg WSMessage) {
+func registerWSHandlers(ctx *server.Context, player *gamepkg.Player, msg WSMessage) {
 
 	switch utils.GameAction(msg.Type) {
 
 	case utils.GameActionPing:
-		ctx.SendWSResponse([]*models.Player{player}, utils.GameActionPong, "ok")
+		ctx.SendWSResponse([]*gamepkg.Player{player}, utils.GameActionPong, "ok")
 
 	case utils.GameActionJoinQueue:
 		game_events.HandleJoinQueue(ctx, player, msg.Data)

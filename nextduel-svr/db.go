@@ -27,6 +27,15 @@ func openDatabase() (*gorm.DB, error) {
 func migrateDatabase(db *gorm.DB) error {
 	return db.AutoMigrate(
 		&models.User{},
+		&models.Quest{},
+		&models.Players{},
+		&models.Match{},
+		&models.MatchPlayer{},
+		&models.MatchRound{},
+		&models.RoundPlayer{},
+		&models.MatchEventLog{},
+		&models.RoundPlayer{},
+		&models.ScoreEvent{},
 	)
 }
 

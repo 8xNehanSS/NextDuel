@@ -3,7 +3,7 @@ package server
 import (
 	"log"
 	"net/http"
-	"nextduel-svr/game"
+	"nextduel-svr/gamepkg"
 	"nextduel-svr/utils"
 
 	"gorm.io/gorm"
@@ -15,7 +15,7 @@ type Server struct {
 	config   utils.Config
 
 	// game functionality
-	gameManager *game.GameManager
+	gameManager *gamepkg.GameManager
 }
 
 func NewServer() *Server {
@@ -36,11 +36,11 @@ func (s *Server) SetDatabase(db *gorm.DB) {
 	s.database = db
 }
 
-func (s *Server) GetGameManager() *game.GameManager {
+func (s *Server) GetGameManager() *gamepkg.GameManager {
 	return s.gameManager
 }
 
-func (s *Server) SetGameManager(game *game.GameManager) {
+func (s *Server) SetGameManager(game *gamepkg.GameManager) {
 	s.gameManager = game
 }
 

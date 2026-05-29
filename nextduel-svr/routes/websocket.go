@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"log"
 	"net/http"
-	"nextduel-svr/models"
+	"nextduel-svr/gamepkg"
 	"nextduel-svr/server"
 
 	"github.com/gorilla/websocket"
@@ -29,7 +29,7 @@ func WSHandler(ctx *server.Context) error {
 		return err
 	}
 
-	player := &models.Player{
+	player := &gamepkg.Player{
 		ID:   ctx.GetCurrentUserID(),
 		Conn: conn,
 	}
@@ -40,7 +40,7 @@ func WSHandler(ctx *server.Context) error {
 	return nil
 }
 
-func readLoop(ctx *server.Context, player *models.Player) {
+func readLoop(ctx *server.Context, player *gamepkg.Player) {
 
 	defer func() {
 		ctx.Game().HandlePlayerDisconnect(player)

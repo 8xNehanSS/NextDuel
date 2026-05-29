@@ -4,8 +4,7 @@ import (
 	"encoding/json"
 	"log"
 	"net/http"
-	"nextduel-svr/game"
-	"nextduel-svr/models"
+	"nextduel-svr/gamepkg"
 	"nextduel-svr/utils"
 
 	"gorm.io/gorm"
@@ -22,10 +21,10 @@ type Context struct {
 	Config utils.Config
 
 	// game related
-	gameManager *game.GameManager
+	gameManager *gamepkg.GameManager
 }
 
-func NewContext(w http.ResponseWriter, r *http.Request, userID string, authorized bool, db *gorm.DB, config utils.Config, gameManager *game.GameManager) *Context {
+func NewContext(w http.ResponseWriter, r *http.Request, userID string, authorized bool, db *gorm.DB, config utils.Config, gameManager *gamepkg.GameManager) *Context {
 	return &Context{
 		writer:      w,
 		request:     r,
@@ -37,7 +36,7 @@ func NewContext(w http.ResponseWriter, r *http.Request, userID string, authorize
 	}
 }
 
-func NewUnauthenticatedContext(w http.ResponseWriter, r *http.Request, db *gorm.DB, config utils.Config, gameManager *game.GameManager) *Context {
+func NewUnauthenticatedContext(w http.ResponseWriter, r *http.Request, db *gorm.DB, config utils.Config, gameManager *gamepkg.GameManager) *Context {
 	return &Context{
 		writer:      w,
 		request:     r,
@@ -49,7 +48,7 @@ func NewUnauthenticatedContext(w http.ResponseWriter, r *http.Request, db *gorm.
 	}
 }
 
-func (ctx *Context) Game() *game.GameManager {
+func (ctx *Context) Game() *gamepkg.GameManager {
 	return ctx.gameManager
 }
 
@@ -101,7 +100,7 @@ func (ctx *Context) setCookie(name, value string) {
 	})
 }
 
-func (ctx *Context) SendWSResponse(player []*models.Player, action utils.GameAction, data any) {
+func (ctx *Context) SendWSResponse(player []*gamepkg.Player, action utils.GameAction, data any) {
 	for _, p := range player {
 		err := p.Conn.WriteJSON(map[string]any{
 			"type": action,

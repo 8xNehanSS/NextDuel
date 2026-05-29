@@ -1,4 +1,4 @@
-package models
+package gamepkg
 
 import "github.com/gorilla/websocket"
 

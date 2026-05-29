@@ -1,8 +1,7 @@
-package game
+package gamepkg
 
 import (
 	"fmt"
-	"nextduel-svr/models"
 	"nextduel-svr/utils"
 
 	"gorm.io/gorm"
@@ -21,7 +20,7 @@ func NewGameManager(db *gorm.DB) *GameManager {
 		rooms:       make(map[string]*Room),
 		playerRooms: make(map[string]string),
 		db:          db,
-		matchmaker:  NewMatchmaking(),
+		matchmaker:  NewMatchmaking(db),
 	}
 }
 
@@ -47,7 +46,7 @@ func (gm *GameManager) GetStatistics() GameStatistics {
 	}
 }
 
-func (gm *GameManager) AddToQueue(p *models.Player) (*Room, bool, error) {
+func (gm *GameManager) AddToQueue(p *Player) (*Room, bool, error) {
 	if _, inRoom := gm.playerRooms[p.ID]; inRoom {
 		return nil, false, fmt.Errorf("Player already in a room")
 	}
@@ -87,8 +86,8 @@ func (gm *GameManager) AddPlayerToRoom(playerID string, roomID string) bool {
 	return true
 }
 
-func (gm *GameManager) CreateRoom(p *models.Player) *Room {
-	room := NewRoom(p, nil)
+func (gm *GameManager) CreateRoom(p *Player) *Room {
+	room := NewRoom(p, nil, gm.db)
 	gm.rooms[room.ID] = room
 	gm.AddPlayerToRoom(p.ID, room.ID)
 	return room
@@ -99,7 +98,7 @@ func (gm *GameManager) GetRoomByID(roomID string) (*Room, bool) {
 	return room, exists
 }
 
-func (gm *GameManager) HandlePlayerDisconnect(player *models.Player) {
+func (gm *GameManager) HandlePlayerDisconnect(player *Player) {
 	if player == nil {
 		return
 	}
@@ -110,6 +109,8 @@ func (gm *GameManager) HandlePlayerDisconnect(player *models.Player) {
 	if !inRoom {
 		return
 	}
+
+	room.HandleDisconnect(player.ID)
 
 	delete(gm.playerRooms, player.ID)
 	delete(room.Players, player.ID)
