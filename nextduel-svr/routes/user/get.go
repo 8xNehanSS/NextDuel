@@ -2,12 +2,12 @@ package user
 
 import (
 	"net/http"
+	"nex-server/server"
 	"nextduel-svr/models"
-	"nextduel-svr/server"
 )
 
 func GetUser(ctx *server.Context) error {
-	userID := ctx.GetCurrentUserID()
+	userID := ctx.UserID()
 	db := ctx.DB()
 	var user models.User
 	if err := db.First(&user, "username = ?", userID).Error; err != nil {

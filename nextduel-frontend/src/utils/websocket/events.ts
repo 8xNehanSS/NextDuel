@@ -36,6 +36,7 @@ export const GameAction = {
 
   // Match Lifecycle
   PLAYER_READY: "player_ready",
+  PLAYER_READY_OK: "player_ready_ok",
 
   DUEL_START: "duel_start",
   ROUND_START: "round_start",

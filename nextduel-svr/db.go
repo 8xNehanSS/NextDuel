@@ -1,8 +1,8 @@
 package main
 
 import (
+	serverutils "nex-server/utils"
 	"nextduel-svr/models"
-	"nextduel-svr/utils"
 
 	"github.com/glebarez/sqlite"
 	"gorm.io/gorm"
@@ -43,7 +43,7 @@ func initDefaultData(db *gorm.DB) error {
 	var count int64
 	db.Model(&models.User{}).Where("username = ?", "admin").Count(&count)
 	if count == 0 {
-		hashedPassword, err := utils.HashPassword("admin")
+		hashedPassword, err := serverutils.HashPassword("admin")
 		if err != nil {
 			return err
 		}

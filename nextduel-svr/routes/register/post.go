@@ -2,9 +2,9 @@ package register
 
 import (
 	"net/http"
+	"nex-server/server"
+	serverutils "nex-server/utils"
 	"nextduel-svr/models"
-	"nextduel-svr/server"
-	"nextduel-svr/utils"
 )
 
 type RegisterRequest struct {
@@ -28,7 +28,7 @@ func RegisterUser(ctx *server.Context) error {
 		return ctx.Error(http.StatusBadRequest, "Email already exists", err)
 	}
 
-	hashedPassword, err := utils.HashPassword(req.Password)
+	hashedPassword, err := serverutils.HashPassword(req.Password)
 	if err != nil {
 		return ctx.Error(http.StatusInternalServerError, "Failed to hash password", err)
 	}

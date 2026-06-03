@@ -1,6 +1,6 @@
 package login
 
-import "nextduel-svr/server"
+import "nex-server/server"
 
 func HandleLogout(ctx *server.Context) error {
 	ctx.Logout()

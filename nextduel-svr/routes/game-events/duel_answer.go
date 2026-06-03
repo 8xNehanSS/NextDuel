@@ -2,28 +2,32 @@ package game_events
 
 import (
 	"encoding/json"
+	"nex-server/server"
 	"nextduel-svr/gamepkg"
-	"nextduel-svr/server"
 	"nextduel-svr/utils"
 )
 
 func HandleDuelAnswer(ctx *server.Context, player *gamepkg.Player, data json.RawMessage) {
-	game := ctx.Game()
+	game, ok := server.Get[*gamepkg.GameManager](ctx)
+	if !ok {
+		ctx.SendWSResponse(player.Conn, utils.GameActionError, "game service not found")
+		return
+	}
 	room, exists := game.GetRoomByPlayerID(player.ID)
 	if !exists {
-		ctx.SendWSResponse([]*gamepkg.Player{player}, utils.GameActionError, "error: not in a room")
+		ctx.SendWSResponse(player.Conn, utils.GameActionError, "error: not in a room")
 		return
 	}
 
 	hasAllAnswered, err := room.AnswerDuel(player.ID, data)
 	if err != nil {
-		ctx.SendWSResponse([]*gamepkg.Player{player}, utils.GameActionError, "error: "+err.Error())
+		ctx.SendWSResponse(player.Conn, utils.GameActionError, "error: "+err.Error())
 		return
 	}
 
-	ctx.SendWSResponse([]*gamepkg.Player{player}, utils.GameActionDuelAnswer, "recieved")
+	ctx.SendWSResponse(player.Conn, utils.GameActionDuelAnswer, "recieved")
 
 	if !hasAllAnswered {
-		ctx.SendWSResponse([]*gamepkg.Player{room.GetOpponent(player.ID)}, utils.GameActionDuelFast, "opponent answered")
+		ctx.SendWSResponse(room.GetOpponent(player.ID).Conn, utils.GameActionDuelFast, "opponent answered")
 	}
 }

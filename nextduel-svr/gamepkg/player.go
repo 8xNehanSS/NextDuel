@@ -11,7 +11,7 @@ type Player struct {
 	answer any
 }
 
-func (p *Player) NewPlayer(id string, conn *websocket.Conn) *Player {
+func NewPlayer(id string, conn *websocket.Conn) *Player {
 	return &Player{
 		ID:    id,
 		Conn:  conn,

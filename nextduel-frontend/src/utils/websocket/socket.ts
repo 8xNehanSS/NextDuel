@@ -21,7 +21,7 @@ class SocketManager {
         if (this.connecting) return this.connecting;
 
         this.connecting = new Promise((resolve) => {
-            this.socket = new WebSocket(`/ws?token=${random4DigitId()}`);
+            this.socket = new WebSocket(`/api/ws?token=${random4DigitId()}`);
             this.socket.onopen = () => {
                 console.log("Connected");
                 resolve();

@@ -56,7 +56,8 @@ const (
 	GameActionJoinRoom   GameAction = "join_room"
 
 	// Match
-	GameActionPlayerReady GameAction = "player_ready"
+	GameActionPlayerReady   GameAction = "player_ready"
+	GameActionPlayerReadyOk GameAction = "player_ready_ok"
 
 	// Gameplay
 	GameActionDuelAnswer GameAction = "duel_answer"

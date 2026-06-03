@@ -10,6 +10,7 @@ const GamePage = () => {
     const round = useGameStore((state) => state.round);
     const me = useGameStore((state) => state.me);
     const opponent = useGameStore((state) => state.opponent);
+    const ready = useGameStore((state) => state.ready);
 
     // local state
     const [answer, setAnswer] = useState("");
@@ -50,7 +51,7 @@ const GamePage = () => {
                     <p className="section-subtitle">Confirm when you are ready to start the duel.</p>
                     <div className="hero-actions">
                         <button className="btn btn-primary" onClick={handleReady}>
-                            Ready up
+                            {ready ? "Waiting for opponent..." : "Ready up!"}
                         </button>
                     </div>
                 </div>

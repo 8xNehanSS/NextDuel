@@ -2,11 +2,14 @@ import { Link } from "react-router";
 import { logout } from "../services/api/common";
 import { useUserStore } from "../store/userStore";
 import { navigationService } from "../utils/navigationService";
+import { useGameStore } from "../store/gameStore";
 
 const Navigator = () => {
     const userStore = useUserStore();
     const loggedIn = useUserStore((state) => state.loggedIn);
     const username = useUserStore((state) => state.username);
+
+    const gameConnected = useGameStore((state) => state.connected);
 
     async function handleSignOut() {
         try {
@@ -32,6 +35,7 @@ const Navigator = () => {
                 <div className="nav-brand">
                     <span className="brand-mark">ND</span>
                     <span>NextDuel</span>
+                    {gameConnected && <span className="status-indicator" title="Connected to game server" />}
                 </div>
 
                 <ul className="nav-links">

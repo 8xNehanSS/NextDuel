@@ -2,9 +2,9 @@ package login
 
 import (
 	"net/http"
+	"nex-server/server"
+	serverutils "nex-server/utils"
 	"nextduel-svr/models"
-	"nextduel-svr/server"
-	"nextduel-svr/utils"
 )
 
 type LoginRequest struct {
@@ -25,7 +25,7 @@ func LoginHandler(ctx *server.Context) error {
 		return ctx.Error(http.StatusUnauthorized, "Invalid username or password", err)
 	}
 
-	if !utils.CheckPassword(user.Password, req.Password) {
+	if !serverutils.CheckPassword(user.Password, req.Password) {
 		return ctx.Error(http.StatusUnauthorized, "Invalid username or password", err)
 	}
 

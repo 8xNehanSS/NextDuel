@@ -14,8 +14,9 @@ export const handlers: Partial<Record<GameAction, Handler>> = {
   },
   [GameAction.MATCH_FOUND]: () => {
     useGameStore.getState().setPhase("matched");
-  },
+  },  
   [GameAction.ROOM_CREATED]: (payload) => {
+    useGameStore.getState().setConnected(true);
     useGameStore.getState().setRoom(payload);
     navigationService.go("/game");
   },
@@ -27,6 +28,10 @@ export const handlers: Partial<Record<GameAction, Handler>> = {
   },
   [GameAction.PLAYER_READY]: (payload) => {
     console.log("Player ready:", payload);
+  },
+  [GameAction.PLAYER_READY_OK]: (payload) => {
+    console.log("Player ready OK:", payload);
+    useGameStore.getState().setReady(true);
   },
   [GameAction.DUEL_START]: (payload) => {
     const { quest, round } = payload as GameStart;

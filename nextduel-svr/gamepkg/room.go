@@ -8,8 +8,10 @@ import (
 	"nextduel-svr/models"
 	"nextduel-svr/utils"
 	"strings"
+	"sync"
 	"time"
 
+	"github.com/gorilla/websocket"
 	"gorm.io/gorm"
 )
 
@@ -27,6 +29,8 @@ type Room struct {
 	fastDuelTimer     int
 	onFastDuel        bool
 	stopTimer         chan struct{}
+	destroyOnce       sync.Once
+	onRoomDestroyed   func(roomID string)
 
 	db              *gorm.DB
 	matchID         uint
@@ -173,10 +177,16 @@ func (r *Room) RoomTimer() {
 					remaining = uint(r.fastDuelTimer)
 				}
 
+				if remaining == 0 {
+					ticker.Stop()
+					r.ProcessDuelResults()
+					break roundLoop
+				}
+
 				remaining--
 				r.broadcastRoundTime(remaining)
 
-				if remaining <= 0 {
+				if remaining == 0 {
 					ticker.Stop()
 					r.ProcessDuelResults()
 					break roundLoop
@@ -280,6 +290,9 @@ func (r *Room) AreAllPlayersReady() bool {
 }
 
 func (r *Room) SetPlayerReady(playerID string) {
+	if r.Status != string(utils.RoomStatusCreated) {
+		return
+	}
 	if player, exists := r.Players[playerID]; exists {
 		player.SetReady(true)
 		recordID, err := r.resolvePlayerRecord(playerID)
@@ -321,7 +334,18 @@ func (r *Room) GetPlayers() []*Player {
 	return players
 }
 
+func (r *Room) GetPlayerCons() []*websocket.Conn {
+	conns := []*websocket.Conn{}
+	for _, player := range r.Players {
+		conns = append(conns, player.Conn)
+	}
+	return conns
+}
+
 func (r *Room) AnswerDuel(playerID string, data interface{}) (bool, error) {
+	if r.Status != string(utils.RoomStatusActive) {
+		return false, fmt.Errorf("match is not active")
+	}
 	if player, exists := r.Players[playerID]; exists {
 		if player.GetAnswer() != nil {
 			return false, fmt.Errorf("player has already answered")
@@ -493,6 +517,8 @@ func (r *Room) endDuel() error {
 			"payload": r.getPlayerInfo(),
 		})
 	}
+
+	r.destroyRoom()
 	return nil
 }
 
@@ -762,6 +788,21 @@ func (r *Room) roundIDPtr() *uint {
 	}
 	value := r.roundID
 	return &value
+}
+
+func (r *Room) destroyRoom() {
+	r.destroyOnce.Do(func() {
+		for _, player := range r.Players {
+			player.Conn.WriteJSON(map[string]interface{}{
+				"type":    utils.GameActionRoomDestroyed,
+				"payload": map[string]any{"room_id": r.ID},
+			})
+		}
+
+		if r.onRoomDestroyed != nil {
+			r.onRoomDestroyed(r.ID)
+		}
+	})
 }
 
 func (r *Room) resolveMatchWinner() *uint {

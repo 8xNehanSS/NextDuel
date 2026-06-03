@@ -23,6 +23,7 @@ type GamePhase =
 type GameStore = {
     connected: boolean;
     roomId: string | null;
+    ready: boolean;
 
     // Players
     me: Player | null;
@@ -49,6 +50,8 @@ type GameStore = {
     // Actions
     setConnected: (connected: boolean) => void;
 
+    setReady: (ready: boolean) => void;
+
     setRoom: (roomId: string) => void;
 
     setPlayers: (me: Player, opponent: Player) => void;
@@ -74,6 +77,8 @@ const initialState = {
     connected: false,
     roomId: null,
 
+    ready: false,
+
     me: null,
     opponent: null,
 
@@ -94,6 +99,11 @@ const initialState = {
 
 export const useGameStore = create<GameStore>((set) => ({
     ...initialState,
+
+    setReady: (ready) =>
+        set({
+            ready,
+        }),
 
     setConnected: (connected) =>
         set({
