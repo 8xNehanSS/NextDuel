@@ -7,6 +7,7 @@ import Loginpage from "./pages/login/page";
 import LobbyPage from "./pages/lobby/page";
 import GamePage from "./pages/game/page";
 import RegisterPage from "./pages/register/page";
+import HistoryPage from "./pages/history/page";
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
     const { loggedIn, authChecked } = useUserStore();
@@ -45,6 +46,7 @@ export default function AppRoutes() {
             <Route path="/register" element={<GuestRoute><RegisterPage /></GuestRoute>} />
             <Route path="/lobby" element={<ProtectedRoute><LobbyPage /></ProtectedRoute>} />
             <Route path="/game" element={<ProtectedRoute><GamePage /></ProtectedRoute>} />
+            <Route path="/history" element={<ProtectedRoute><HistoryPage /></ProtectedRoute>} />
             <Route path="*" element={<NotFound />} />
         </Routes>
     );

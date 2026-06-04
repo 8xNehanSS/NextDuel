@@ -2,6 +2,7 @@ import { GameAction } from "./events";
 import { useGameStore } from "../../store/gameStore";
 import type { GameStart } from "../../types/game";
 import { navigationService } from "../navigationService";
+import { appEventBus } from "../eventbus";
 
 type Handler = (payload: any) => void;
 
@@ -59,6 +60,7 @@ export const handlers: Partial<Record<GameAction, Handler>> = {
   },
   [GameAction.ROOM_DESTROYED]: (payload) => {
     console.warn("Room destroyed:", payload);
+    appEventBus.fire("notification", { message: "Room destroyed : Player disconnected", type: "info"  });
     useGameStore.getState().resetGame();
     navigationService.go("/lobby");
   },

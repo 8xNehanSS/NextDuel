@@ -45,6 +45,9 @@ const Navigator = () => {
                     <li>
                         <Link to="/lobby">Lobby</Link>
                     </li>
+                    <li>
+                        <Link to="/history">History</Link>
+                    </li>
                 </ul>
 
                 <div className="nav-actions">

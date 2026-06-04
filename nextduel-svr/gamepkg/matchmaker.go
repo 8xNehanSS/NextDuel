@@ -65,3 +65,14 @@ func (m *Matchmaking) RemovePlayer(playerID string) bool {
 	}
 	return false
 }
+
+func (m *Matchmaking) GetPlayer(playerID string) (*Player, bool) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	for _, p := range m.Queue {
+		if p.ID == playerID {
+			return p, true
+		}
+	}
+	return nil, false
+}

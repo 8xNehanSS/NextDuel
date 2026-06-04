@@ -35,7 +35,8 @@ const GamePage = () => {
             <div className="game-header">
                 <div>
                     <h1 className="section-title">Duel Room</h1>
-                    <p className="section-subtitle">Phase: {phase}</p>
+                    {phase !== "none" && <p className="section-subtitle">Phase: {phase}</p>}
+                    {phase === "none" && <p className="section-subtitle">No active game found</p>}
                 </div>
                 <div className="game-header-chips">
                     <span className="chip">Round {round}</span>

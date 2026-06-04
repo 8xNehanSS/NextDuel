@@ -862,3 +862,8 @@ func (r *Room) updatePlayerStats(winnerID *uint) {
 		}
 	}
 }
+
+func (r *Room) GetPlayer(playerID string) (*Player, bool) {
+	player, exists := r.Players[playerID]
+	return player, exists
+}

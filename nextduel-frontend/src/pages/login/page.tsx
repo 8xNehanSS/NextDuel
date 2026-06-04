@@ -9,7 +9,10 @@ const LoginPage = () => {
     const [error, setError] = useState<string | null>(null);
 
     async function handleLogin() {
-        if (!loginData.username || !loginData.password) return;
+        if (!loginData.username || !loginData.password) {
+            setError("Please enter both username and password");
+            return;
+        }
         setError(null);
         try {
             await login(loginData);
@@ -18,6 +21,12 @@ const LoginPage = () => {
         }
     }
 
+    const handleSubmit = async (e: React.SubmitEvent) => {
+        e.preventDefault();
+        await handleLogin();
+    };
+
+
     return (
         <div className="flex items-center justify-center px-4 mt-4">
             <div className="w-full max-w-md bg-white shadow-xl rounded-2xl p-8">
@@ -25,50 +34,52 @@ const LoginPage = () => {
                     Please enter your credentials to log in
                 </p>
 
-                <div className="mt-6 space-y-4">
 
-                    <input
-                        type="text"
-                        placeholder="Username"
-                        value={loginData.username}
-                        onChange={(e) =>
-                            setLoginData((prev) => ({
-                                ...prev,
-                                username: e.target.value,
-                            }))
-                        }
-                        className="w-full px-4 py-3 border border-gray-300 rounded-lg 
+                <form onSubmit={handleSubmit}>
+                    <div className="mt-6 space-y-4">
+                        <input
+                            type="text"
+                            placeholder="Username"
+                            value={loginData.username}
+                            onChange={(e) =>
+                                setLoginData((prev) => ({
+                                    ...prev,
+                                    username: e.target.value,
+                                }))
+                            }
+                            className="w-full px-4 py-3 border border-gray-300 rounded-lg 
                                    focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                    />
+                        />
 
-                    <input
-                        type="password"
-                        placeholder="Password"
-                        value={loginData.password}
-                        onChange={(e) =>
-                            setLoginData((prev) => ({
-                                ...prev,
-                                password: e.target.value,
-                            }))
-                        }
-                        className="w-full px-4 py-3 border border-gray-300 rounded-lg 
+                        <input
+                            type="password"
+                            placeholder="Password"
+                            value={loginData.password}
+                            onChange={(e) =>
+                                setLoginData((prev) => ({
+                                    ...prev,
+                                    password: e.target.value,
+                                }))
+                            }
+                            className="w-full px-4 py-3 border border-gray-300 rounded-lg 
                                    focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                    />
+                        />
 
-                    {error && (
-                        <p className="text-red-500 text-sm text-center">{error}</p>
-                    )}
+                        {error && (
+                            <p className="text-red-500 text-sm text-center">{error}</p>
+                        )}
 
-                    <button
-                        onClick={handleLogin}
-                        className="w-full bg-blue-600 text-white py-3 rounded-lg font-semibold
+                        <button
+                            type="submit"
+                            className="w-full bg-blue-600 text-white py-3 rounded-lg font-semibold
                                    hover:bg-blue-700 active:scale-[0.98] transition"
-                    >
-                        Login
-                    </button>
-                </div>
+                        >
+                            Login
+                        </button>
+                    </div>
+                </form>
             </div>
-        </div>
+        </div >
     );
 };
 

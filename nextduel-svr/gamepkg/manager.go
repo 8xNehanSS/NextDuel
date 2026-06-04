@@ -41,7 +41,7 @@ func (gm *GameManager) GetStatistics() GameStatistics {
 		Rooms:          len(gm.rooms),
 		Queue:          len(gm.matchmaker.GetQueue()),
 		Players:        len(gm.playerRooms),
-		PlayersInRooms: len(gm.playerRooms) - len(gm.matchmaker.GetQueue()),
+		PlayersInRooms: len(gm.playerRooms),
 		PlayersInQueue: len(gm.matchmaker.GetQueue()),
 		MemoryUsage:    serverutils.GetMemoryUsage(),
 		CPUUsage:       serverutils.GetCPUUsage(),
@@ -76,6 +76,19 @@ func (gm *GameManager) GetRoomByPlayerID(playerID string) (*Room, bool) {
 	}
 	room, exists := gm.rooms[roomID]
 	return room, exists
+}
+
+func (gm *GameManager) GetPlayerByID(playerID string) (*Player, bool) {
+	for _, room := range gm.rooms {
+		if player, exists := room.GetPlayer(playerID); exists {
+			return player, true
+		}
+	}
+	player, exists := gm.matchmaker.GetPlayer(playerID)
+	if exists {
+		return player, true
+	}
+	return nil, false
 }
 
 func (gm *GameManager) AddPlayerToRoom(playerID string, roomID string) bool {

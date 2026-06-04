@@ -12,11 +12,12 @@ func HandleWSDisconnect(ctx *server.Context, conn *websocket.Conn) error {
 		return nil
 	}
 	playerID := ctx.UserID()
-	room, exists := game.GetRoomByPlayerID(playerID)
+	player, exists := game.GetPlayerByID(playerID)
 	if !exists {
-		return nil // not in a room, nothing to clean up
+		return nil
 	}
 
-	room.HandleDisconnect(playerID)
+	game.HandlePlayerDisconnect(player)
+
 	return nil
 }

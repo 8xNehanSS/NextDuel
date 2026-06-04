@@ -8,6 +8,7 @@ import (
 	"nextduel-svr/gamepkg"
 	game_events "nextduel-svr/routes/game-events"
 	"nextduel-svr/routes/health"
+	"nextduel-svr/routes/history"
 	"nextduel-svr/routes/login"
 	"nextduel-svr/routes/register"
 	"nextduel-svr/routes/user"
@@ -47,6 +48,7 @@ func registerEndpoints(r *server.Registrar, config serverutils.Config) {
 	api.Private(http.MethodGet, "/health", health.HealthHandler)
 	api.Private(http.MethodGet, "/user", user.GetUser)
 	api.Private(http.MethodPost, "/logout", login.HandleLogout)
+	api.Private(http.MethodGet, "/history/duels", history.GetDuelHistory)
 
 	// websocket routes
 	api.PrivateWS("/ws", registerWSHandlers, gamepkg.HandleWSDisconnect)
