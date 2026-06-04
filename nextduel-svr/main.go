@@ -49,7 +49,7 @@ func registerEndpoints(r *server.Registrar, config serverutils.Config) {
 	api.Private(http.MethodPost, "/logout", login.HandleLogout)
 
 	// websocket routes
-	api.PrivateWS("/ws", registerWSHandlers)
+	api.PrivateWS("/ws", registerWSHandlers, gamepkg.HandleWSDisconnect)
 
 	// file server
 	api.ServeApplication(http.Dir(fmt.Sprint("./%s", config.HtmlRoot)))
