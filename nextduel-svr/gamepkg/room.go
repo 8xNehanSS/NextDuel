@@ -16,11 +16,14 @@ import (
 )
 
 type Room struct {
-	ID      string
-	Players map[string]*Player
-	Scores  map[string]int
-	Quest   models.Quest
-	Status  string
+	ID              string
+	Players         map[string]*Player
+	Scores          map[string]int
+	QuestionManager *QuestionManager
+	Status          string
+
+	roundQuestion string
+	roundAnswer   string
 
 	round             int
 	maxRounds         int
@@ -41,6 +44,7 @@ type Room struct {
 }
 
 func NewRoom(p1, p2 *Player, db *gorm.DB) *Room {
+	rounds := 5
 	roomID := utils.GenerateRoomID()
 	players := map[string]*Player{
 		p1.ID: p1,
@@ -55,13 +59,16 @@ func NewRoom(p1, p2 *Player, db *gorm.DB) *Room {
 		playerOrder = append(playerOrder, p2.ID)
 	}
 
+	questionManager := NewQuestionManager(rounds)
+
 	room := &Room{
 		ID:                roomID,
 		Players:           players,
 		Scores:            scores,
+		QuestionManager:   questionManager,
 		Status:            string(utils.RoomStatusCreated),
 		round:             1,
-		maxRounds:         5,
+		maxRounds:         rounds,
 		timer:             60,
 		intermissionTimer: 5,
 		fastDuelTimer:     10,
@@ -143,7 +150,7 @@ func (r *Room) startGame() {
 		player.Conn.WriteJSON(map[string]interface{}{
 			"type": utils.GameActionDuelStart,
 			"payload": map[string]interface{}{
-				"quest":   r.Quest.Question,
+				"quest":   r.roundQuestion,
 				"round":   r.round,
 				"players": r.getPlayerInfo(),
 			},
@@ -152,11 +159,15 @@ func (r *Room) startGame() {
 }
 
 func (r *Room) prepareRound() {
-	r.Quest = models.Quest{
-		ID:       fmt.Sprintf("quest-%d", r.round),
-		Question: fmt.Sprintf("What is the answer to question %d?", r.round),
-		Answer:   "IDK",
+	roundQuestion := r.QuestionManager.GetQuestion(r.round)
+	if roundQuestion == nil {
+		log.Printf("no question found for round %d", r.round)
+		r.roundQuestion = "No question available"
+		r.roundAnswer = ""
+		return
 	}
+	r.roundQuestion = roundQuestion.Question
+	r.roundAnswer = roundQuestion.Answer
 }
 
 func (r *Room) RoomTimer() {
@@ -376,7 +387,7 @@ func (r *Room) ProcessDuelResults() {
 	}
 
 	results := make(map[string]int)
-	correctAnswer := strings.TrimSpace(r.Quest.Answer)
+	correctAnswer := strings.TrimSpace(r.roundAnswer)
 	winnerPlayerID := ""
 	maxDelta := -1
 
@@ -600,8 +611,8 @@ func (r *Room) createRoundRecord() {
 	round := models.MatchRound{
 		MatchID:   r.matchID,
 		RoundNo:   r.round,
-		QuestID:   r.Quest.ID,
-		Question:  r.Quest.Question,
+		QuestID:   r.QuestionManager.ID,
+		Question:  r.roundQuestion,
 		StartedAt: time.Now(),
 	}
 	if err := r.db.Create(&round).Error; err != nil {

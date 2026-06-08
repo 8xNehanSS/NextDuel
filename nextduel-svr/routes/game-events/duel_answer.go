@@ -7,6 +7,11 @@ import (
 	"nextduel-svr/utils"
 )
 
+type DuelAnswerData struct {
+	QuestionId string `json:"questionId"`
+	Answer     string `json:"answer"`
+}
+
 func HandleDuelAnswer(ctx *server.Context, player *gamepkg.Player, data json.RawMessage) {
 	game, ok := server.Get[*gamepkg.GameManager](ctx)
 	if !ok {
@@ -19,7 +24,13 @@ func HandleDuelAnswer(ctx *server.Context, player *gamepkg.Player, data json.Raw
 		return
 	}
 
-	hasAllAnswered, err := room.AnswerDuel(player.ID, data)
+	var duelAnswerData DuelAnswerData
+	if err := json.Unmarshal(data, &duelAnswerData); err != nil {
+		ctx.SendWSResponse(player.Conn, utils.GameActionError, "invalid data format")
+		return
+	}
+
+	hasAllAnswered, err := room.AnswerDuel(player.ID, duelAnswerData.Answer)
 	if err != nil {
 		ctx.SendWSResponse(player.Conn, utils.GameActionError, "error: "+err.Error())
 		return
