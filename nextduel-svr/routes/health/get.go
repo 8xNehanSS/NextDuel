@@ -2,15 +2,13 @@ package health
 
 import (
 	"nex-server/server"
-	"nextduel-svr/gamepkg"
 )
 
-func HealthHandler(ctx *server.Context) error {
-	game, ok := server.Get[*gamepkg.GameManager](ctx)
-	if !ok {
+func (h *HealthServices) HealthHandler(ctx *server.Context) error {
+	if h.Game == nil {
 		ctx.InternalError("game service unavailable")
 		return nil
 	}
-	ctx.JSON(200, game.GetStatistics())
+	ctx.JSON(200, h.Game.GetStatistics())
 	return nil
 }

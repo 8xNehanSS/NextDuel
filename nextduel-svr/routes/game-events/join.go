@@ -6,13 +6,12 @@ import (
 	"nextduel-svr/utils"
 )
 
-func HandleJoinQueue(ctx *server.Context, player *gamepkg.Player, data any) {
-	game, ok := server.Get[*gamepkg.GameManager](ctx)
-	if !ok {
+func (g *GameEventServices) HandleJoinQueue(ctx *server.Context, player *gamepkg.Player, data any) {
+	if g.Game == nil {
 		ctx.SendWSResponse(player.Conn, utils.GameActionError, "game service not found")
 		return
 	}
-	room, matched, err := game.AddToQueue(player)
+	room, matched, err := g.Game.AddToQueue(player)
 	if err != nil {
 		ctx.SendWSResponse(player.Conn, utils.GameActionError, err.Error())
 		return
@@ -25,28 +24,30 @@ func HandleJoinQueue(ctx *server.Context, player *gamepkg.Player, data any) {
 	}
 }
 
-func HandleCreateRoom(ctx *server.Context, player *gamepkg.Player, data any) {
-	game, ok := server.Get[*gamepkg.GameManager](ctx)
-	if !ok {
+func (g *GameEventServices) HandleCreateRoom(ctx *server.Context, player *gamepkg.Player, data any) {
+	if g.Game == nil {
 		ctx.SendWSResponse(player.Conn, utils.GameActionError, "game service not found")
 		return
 	}
-	room := game.CreateRoom(player)
+	room := g.Game.CreateRoom(player)
 	ctx.SendWSResponse(player.Conn, utils.GameActionRoomCreated, room.ID)
 }
 
-func HandleJoinRoom(ctx *server.Context, player *gamepkg.Player, data any) {
+func (g *GameEventServices) HandleJoinRoom(ctx *server.Context, player *gamepkg.Player, data any) {
 	roomID, ok := data.(string)
 	if !ok {
 		ctx.SendWSResponse(player.Conn, utils.GameActionError, "invalid_room_id")
 		return
 	}
-	game, ok := server.Get[*gamepkg.GameManager](ctx)
+	if g.Game == nil {
+		ctx.SendWSResponse(player.Conn, utils.GameActionError, "game service not found")
+		return
+	}
 	if !ok {
 		ctx.SendWSResponse(player.Conn, utils.GameActionError, "game service not found")
 		return
 	}
-	room, exists := game.GetRoomByID(roomID)
+	room, exists := g.Game.GetRoomByID(roomID)
 	if !exists {
 		ctx.SendWSResponse(player.Conn, utils.GameActionError, "room_not_found")
 		return

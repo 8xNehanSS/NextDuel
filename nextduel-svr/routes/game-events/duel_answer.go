@@ -12,13 +12,12 @@ type DuelAnswerData struct {
 	Answer     string `json:"answer"`
 }
 
-func HandleDuelAnswer(ctx *server.Context, player *gamepkg.Player, data json.RawMessage) {
-	game, ok := server.Get[*gamepkg.GameManager](ctx)
-	if !ok {
+func (g *GameEventServices) HandleDuelAnswer(ctx *server.Context, player *gamepkg.Player, data json.RawMessage) {
+	if g.Game == nil {
 		ctx.SendWSResponse(player.Conn, utils.GameActionError, "game service not found")
 		return
 	}
-	room, exists := game.GetRoomByPlayerID(player.ID)
+	room, exists := g.Game.GetRoomByPlayerID(player.ID)
 	if !exists {
 		ctx.SendWSResponse(player.Conn, utils.GameActionError, "error: not in a room")
 		return

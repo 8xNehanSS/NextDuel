@@ -6,18 +6,14 @@ import (
 	"github.com/gorilla/websocket"
 )
 
-func HandleWSDisconnect(ctx *server.Context, conn *websocket.Conn) error {
-	game, ok := server.Get[*GameManager](ctx)
-	if !ok {
-		return nil
-	}
+func (gm *GameManager) HandleWSDisconnect(ctx *server.Context, conn *websocket.Conn, services any) error {
 	playerID := ctx.UserID()
-	player, exists := game.GetPlayerByID(playerID)
+	player, exists := gm.GetPlayerByID(playerID)
 	if !exists {
 		return nil
 	}
 
-	game.HandlePlayerDisconnect(player)
+	gm.HandlePlayerDisconnect(player)
 
 	return nil
 }

@@ -6,13 +6,12 @@ import (
 	"nextduel-svr/utils"
 )
 
-func HandleReadyPlayer(ctx *server.Context, player *gamepkg.Player, data any) {
-	game, ok := server.Get[*gamepkg.GameManager](ctx)
-	if !ok {
+func (g *GameEventServices) HandleReadyPlayer(ctx *server.Context, player *gamepkg.Player, data any) {
+	if g.Game == nil {
 		ctx.SendWSResponse(player.Conn, utils.GameActionError, "game service not found")
 		return
 	}
-	room, exists := game.GetRoomByPlayerID(player.ID)
+	room, exists := g.Game.GetRoomByPlayerID(player.ID)
 	if !exists {
 		ctx.SendWSResponse(player.Conn, utils.GameActionError, "error: not in a room")
 		return
