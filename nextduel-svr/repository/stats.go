@@ -19,6 +19,7 @@ type PlayerStats struct {
 
 type MatchSummary struct {
 	MatchID           uint      `json:"match_id"`
+	Mode              string    `json:"mode"`
 	Status            string    `json:"status"`
 	Result            string    `json:"result"` // win | loss | draw
 	BestOf            int       `json:"best_of"`
@@ -41,9 +42,10 @@ type DuelHistory struct {
 
 var finishedStatuses = []string{string(utils.MatchStatusCompleted), string(utils.MatchStatusAbandoned)}
 
-// History returns the finished matches of username, newest first. A user who
-// has never played gets an empty history rather than an error.
-func History(db *gorm.DB, username string, limit, offset int) (DuelHistory, error) {
+// History returns the finished matches of username, newest first, optionally
+// limited to one game mode (mode == "" means all). Stats cover the same
+// selection. A user who has never played gets an empty history, not an error.
+func History(db *gorm.DB, username string, mode utils.GameMode, limit, offset int) (DuelHistory, error) {
 	out := DuelHistory{Matches: []MatchSummary{}, Limit: limit, Offset: offset}
 
 	var player models.Players
@@ -54,11 +56,17 @@ func History(db *gorm.DB, username string, limit, offset int) (DuelHistory, erro
 	if err != nil {
 		return out, err
 	}
-	out.Stats = statsOf(player)
-
 	base := db.Table("match_players AS me").
 		Joins("JOIN matches m ON m.id = me.match_id").
 		Where("me.player_id = ? AND m.status IN ?", player.ID, finishedStatuses)
+	if mode != "" {
+		base = base.Where("m.mode = ?", string(mode))
+		if out.Stats, err = modeStats(db, player.ID, mode); err != nil {
+			return out, err
+		}
+	} else {
+		out.Stats = statsOf(player)
+	}
 
 	if err := base.Session(&gorm.Session{}).Count(&out.Total).Error; err != nil {
 		return out, err
@@ -66,6 +74,7 @@ func History(db *gorm.DB, username string, limit, offset int) (DuelHistory, erro
 
 	type row struct {
 		MatchID           uint
+		Mode              string
 		Status            string
 		BestOf            int
 		WinnerID          *uint
@@ -79,7 +88,7 @@ func History(db *gorm.DB, username string, limit, offset int) (DuelHistory, erro
 	}
 	var rows []row
 	err = base.Session(&gorm.Session{}).
-		Select(`m.id AS match_id, m.status, m.best_of, m.winner_id, m.started_at, m.ended_at,
+		Select(`m.id AS match_id, m.mode, m.status, m.best_of, m.winner_id, m.started_at, m.ended_at,
 			me.score, me.rounds_won,
 			opp.username AS opponent, op.score AS opponent_score, op.rounds_won AS opponent_rounds_won`).
 		Joins("LEFT JOIN match_players op ON op.match_id = me.match_id AND op.player_id <> me.player_id").
@@ -102,6 +111,7 @@ func History(db *gorm.DB, username string, limit, offset int) (DuelHistory, erro
 		}
 		s := MatchSummary{
 			MatchID:   r.MatchID,
+			Mode:      r.Mode,
 			Status:    r.Status,
 			Result:    result,
 			BestOf:    r.BestOf,
@@ -131,24 +141,69 @@ type LeaderboardEntry struct {
 }
 
 // Leaderboard ranks players by wins, then win rate, then fewest matches.
-func Leaderboard(db *gorm.DB, limit int) ([]LeaderboardEntry, error) {
-	var players []models.Players
-	err := db.Where("total_matches > 0").
-		Order("total_wins DESC").
+// mode == "" ranks lifetime totals across every game; otherwise only matches
+// of that mode count.
+func Leaderboard(db *gorm.DB, mode utils.GameMode, limit int) ([]LeaderboardEntry, error) {
+	type row struct {
+		Username     string
+		TotalMatches int
+		TotalWins    int
+		TotalLosses  int
+	}
+	var rows []row
+	var q *gorm.DB
+	if mode == "" {
+		q = db.Model(&models.Players{}).
+			Select("username, total_matches, total_wins, total_losses").
+			Where("total_matches > 0")
+	} else {
+		q = db.Table("match_players AS mp").
+			Select(`p.username,
+				COUNT(*) AS total_matches,
+				SUM(CASE WHEN m.winner_id = mp.player_id THEN 1 ELSE 0 END) AS total_wins,
+				SUM(CASE WHEN m.winner_id IS NOT NULL AND m.winner_id <> mp.player_id THEN 1 ELSE 0 END) AS total_losses`).
+			Joins("JOIN matches m ON m.id = mp.match_id").
+			Joins("JOIN players p ON p.id = mp.player_id").
+			Where("m.status IN ? AND m.mode = ?", finishedStatuses, string(mode)).
+			Group("p.id, p.username")
+	}
+	err := q.Order("total_wins DESC").
 		Order("CAST(total_wins AS REAL) / total_matches DESC").
 		Order("total_matches ASC").
 		Order("username ASC").
 		Limit(limit).
-		Find(&players).Error
+		Scan(&rows).Error
 	if err != nil {
 		return nil, err
 	}
 
-	out := make([]LeaderboardEntry, len(players))
-	for i, p := range players {
-		out[i] = LeaderboardEntry{Rank: i + 1, Username: p.Username, PlayerStats: statsOf(p)}
+	out := make([]LeaderboardEntry, len(rows))
+	for i, r := range rows {
+		out[i] = LeaderboardEntry{Rank: i + 1, Username: r.Username, PlayerStats: statsOf(models.Players{
+			TotalMatches: r.TotalMatches, TotalWins: r.TotalWins, TotalLosses: r.TotalLosses,
+		})}
 	}
 	return out, nil
+}
+
+// modeStats aggregates one player's results for a single game mode.
+func modeStats(db *gorm.DB, playerID uint, mode utils.GameMode) (PlayerStats, error) {
+	var r struct {
+		TotalMatches int
+		TotalWins    int
+		TotalLosses  int
+	}
+	err := db.Table("match_players AS mp").
+		Select(`COUNT(*) AS total_matches,
+			COALESCE(SUM(CASE WHEN m.winner_id = mp.player_id THEN 1 ELSE 0 END), 0) AS total_wins,
+			COALESCE(SUM(CASE WHEN m.winner_id IS NOT NULL AND m.winner_id <> mp.player_id THEN 1 ELSE 0 END), 0) AS total_losses`).
+		Joins("JOIN matches m ON m.id = mp.match_id").
+		Where("mp.player_id = ? AND m.status IN ? AND m.mode = ?", playerID, finishedStatuses, string(mode)).
+		Scan(&r).Error
+	if err != nil {
+		return PlayerStats{}, err
+	}
+	return statsOf(models.Players{TotalMatches: r.TotalMatches, TotalWins: r.TotalWins, TotalLosses: r.TotalLosses}), nil
 }
 
 func statsOf(p models.Players) PlayerStats {

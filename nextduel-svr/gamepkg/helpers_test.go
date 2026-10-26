@@ -96,7 +96,7 @@ type recordingRecorder struct {
 	aborted   int
 }
 
-func (r *recordingRecorder) StartMatch(string, int, []string) uint { return 1 }
+func (r *recordingRecorder) StartMatch(string, utils.GameMode, int, []string) uint { return 1 }
 func (r *recordingRecorder) CompleteMatch(_ uint, status utils.MatchStatus, winner *string, players []string, _ string) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -135,7 +135,7 @@ func newHarness(t *testing.T, provider questions.Provider) *harness {
 		provider = staticProvider{}
 	}
 	rec := &recordingRecorder{}
-	return &harness{gm: NewGameManager(testSettings(), provider, rec), rec: rec}
+	return &harness{gm: NewGameManager(testSettings(), NewModes(NewTriviaMode(provider), NewMathMode(), NewScrambleMode(), NewRPSMode()), rec), rec: rec}
 }
 
 func (h *harness) connect(id string) (*Player, *fakeConn) {
@@ -149,8 +149,8 @@ func (h *harness) startDuel(t *testing.T) (p1, p2 *Player, c1, c2 *fakeConn) {
 	t.Helper()
 	p1, c1 = h.connect("alice")
 	p2, c2 = h.connect("bob")
-	must(t, h.gm.JoinQueue(p1))
-	must(t, h.gm.JoinQueue(p2))
+	must(t, h.gm.JoinQueue(p1, utils.GameModeTrivia))
+	must(t, h.gm.JoinQueue(p2, utils.GameModeTrivia))
 	c1.expect(t, utils.GameActionMatchFound)
 	c2.expect(t, utils.GameActionMatchFound)
 	must(t, h.gm.SetReady(p1))

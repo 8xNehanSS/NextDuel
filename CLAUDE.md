@@ -4,9 +4,10 @@ Guidance for working in this repository. See README.md for user-facing setup.
 
 ## What this is
 
-NextDuel: real-time 1v1 trivia. Go backend (`nextduel-svr/`) + React SPA
-(`nextduel-frontend/`). Players queue or join a private room by 6-char code,
-ready up, then play `GAME_ROUNDS` multiple-choice rounds over a websocket.
+NextDuel: real-time 1v1 duels in several games (trivia, math sprint, word
+scramble, rock-paper-scissors). Go backend (`nextduel-svr/`) + React SPA
+(`nextduel-frontend/`). Players pick a game, queue or join a private room by
+6-char code, ready up, then play `GAME_ROUNDS` rounds over a websocket.
 
 ## Commands
 
@@ -56,7 +57,9 @@ database/        Open (SQLite WAL), Migrate (AutoMigrate), seeding
 models/          GORM models. Players (game stats) is separate from User (auth), keyed by username
 gamepkg/         game engine, no DB imports
   manager.go     GameManager: sessions (per *websocket.Conn), queue, rooms, playerRooms
-  room.go        Room: one duel; run() goroutine drives rounds/timers
+  room.go        Room: one duel; run() goroutine drives rounds/timers (game-agnostic)
+  modes.go       Mode interface + registry + shared resolvers (resolveExclusive/resolveFastest)
+  mode_*.go      one file per game: trivia, math, scramble, rps
   player.go      Player: one websocket session with a single writer goroutine
   recorder.go    Recorder interface (persistence port) + noop
   protocol.go    wire payload structs
@@ -83,12 +86,40 @@ utils/           GameAction + status enums, room code generator
 - `Recorder` methods run under `Room.mu`. They must not call back into the room,
   and they resolve player IDs **before** opening a transaction (SQLite has one writer).
 
-### Game rules (encoded in room.go)
+### Game modes
+
+Every game is the same duel shape, so `Room` stays game-agnostic and a
+`Mode` supplies the content and scoring:
+
+- `Mode.Rounds(ctx, n)` returns n prompts (`questions.Question`: text, choices, optional answer).
+- `Mode.Resolve(q, answers)` returns who scored (+1), the round winner, the revealed answer and a summary.
+  It runs under `Room.mu`; keep it pure.
+- `ModeInfo.RoundDuration` caps the round clock (config can only shorten it further).
+
+| ID | Rounds | Round winner |
+| --- | --- | --- |
+| `trivia` | questions provider (OpenTDB → bank) | only player correct (`resolveExclusive`) |
+| `math` | generated, difficulty ramps per round | first correct answer (`resolveFastest`) |
+| `scramble` | built-in word list; decoys are letter-swaps | first correct answer |
+| `rps` | fixed Rock/Paper/Scissors | classic rules; not picking loses; tie = none |
+
+"First" uses `RoundAnswer.Order` (assigned under the lock), not wall-clock
+elapsed time: Windows timer resolution makes near-simultaneous answers equal.
+
+**Adding a game:** implement `Mode` in `gamepkg/mode_<id>.go`, add the ID to
+`utils.GameMode`, register it in `newModes` (main.go), add the TS union member
+in `src/types/protocol.ts` and an entry in `src/games.ts` (name, icon, rules).
+Add special rendering in `pages/game/page.tsx` (`Prompt`) only if needed.
+Queues, rooms, history, per-game leaderboards and persistence need no changes.
+
+### Rules shared by every mode (encoded in room.go)
 
 - Answers must exactly match one of the offered choices.
-- The first answer shortens the remaining clock to `FastDuelDuration`.
-- +1 score per correct answer. A round is won only if exactly one player is correct.
+- The first answer shortens the remaining clock to `FastDuelDuration`. Answers stay hidden from the opponent until the round resolves.
 - Match winner = more rounds won (tie = draw). Leaving mid-match = forfeit (match `abandoned`, opponent wins).
+- Matchmaking queues are per mode; a player can be in only one queue or room at a time.
+- `join_queue` / `create_room` take `{mode}`; a missing mode means `trivia` (older clients).
+- `matches.mode` stores the mode; `database.Migrate` rewrites legacy `classic` rows to `trivia`.
 - Match statuses: `active`, `completed`, `abandoned` (forfeit, counts in stats),
   `aborted` (no result, e.g. shutdown; hidden from history and stats).
 - A DB match row is created only when the game actually starts.

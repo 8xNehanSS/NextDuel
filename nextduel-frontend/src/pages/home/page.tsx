@@ -4,6 +4,7 @@ import { fetchServerStatistics } from "../../services/api/common";
 import type { ServerStatistics } from "../../types/api";
 import { errorMessage } from "../../utils/apiclient";
 import { useUserStore } from "../../store/userStore";
+import { GAMES } from "../../games";
 
 const REFRESH_MS = 10_000;
 
@@ -45,7 +46,7 @@ const Homepage = () => {
                 <div className="panel hero-card float-in">
                     <h1 className="hero-title">Ready for a duel, {username}?</h1>
                     <p className="section-subtitle">
-                        Head-to-head trivia in real time. Answer first to put your rival on the clock.
+                        Real-time head-to-head duels: trivia, math, words and more. Answer first to put your rival on the clock.
                     </p>
                     <div className="hero-actions">
                         <Link to="/lobby" className="btn btn-primary">
@@ -59,13 +60,23 @@ const Homepage = () => {
 
                 <div className="panel float-in">
                     <h2 className="section-title" style={{ fontSize: 24 }}>
-                        How it works
+                        Games
                     </h2>
-                    <ul className="info-list" style={{ marginTop: 16 }}>
-                        <li>Every duel is a series of multiple-choice rounds.</li>
-                        <li>The first answer in a round cuts your opponent's clock short.</li>
-                        <li>Win a round by being the only one to answer correctly.</li>
-                        <li>Most rounds won takes the match.</li>
+                    <ul className="game-list">
+                        {GAMES.map((g) => (
+                            <li key={g.id}>
+                                <Link to={`/lobby?game=${g.id}`}>
+                                    <span className="game-icon" aria-hidden>
+                                        {g.icon}
+                                    </span>
+                                    <span>
+                                        <strong>{g.name}</strong>
+                                        <span className="muted">{g.tagline}</span>
+                                    </span>
+                                    {stats?.queues?.[g.id] ? <span className="chip">{stats.queues[g.id]} waiting</span> : null}
+                                </Link>
+                            </li>
+                        ))}
                     </ul>
                 </div>
             </div>

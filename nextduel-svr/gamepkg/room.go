@@ -34,15 +34,18 @@ func DefaultSettings() Settings {
 }
 
 type roomPlayer struct {
-	player    *Player
-	ready     bool
-	score     int
-	roundsWon int
-	answered  bool
-	answer    string
+	player     *Player
+	ready      bool
+	score      int
+	roundsWon  int
+	answered   bool
+	answer     string
+	answeredAt time.Time
+	order      int
 }
 
-// Room is a single duel between two players.
+// Room is a single duel between two players. What each round contains and
+// how it is scored is delegated to its Mode; Room owns timing and lifecycle.
 //
 // Concurrency: every field below mu is guarded by mu. The match itself runs in
 // one goroutine (run) started when both players are ready; websocket handlers
@@ -56,7 +59,7 @@ type Room struct {
 	Private bool
 
 	settings Settings
-	provider questions.Provider
+	mode     Mode
 	recorder Recorder
 	onClosed func(roomID string, playerIDs []string)
 
@@ -70,13 +73,14 @@ type Room struct {
 	questions   []questions.Question
 	round       int
 	accepting   bool
+	roundStart  time.Time
 	deadline    time.Time
 	fastApplied bool
 	matchID     uint
 	roundID     uint
 }
 
-func newRoom(id string, private bool, settings Settings, provider questions.Provider, recorder Recorder, onClosed func(string, []string)) *Room {
+func newRoom(id string, private bool, settings Settings, mode Mode, recorder Recorder, onClosed func(string, []string)) *Room {
 	if recorder == nil {
 		recorder = noopRecorder{}
 	}
@@ -84,7 +88,7 @@ func newRoom(id string, private bool, settings Settings, provider questions.Prov
 		ID:       id,
 		Private:  private,
 		settings: settings,
-		provider: provider,
+		mode:     mode,
 		recorder: recorder,
 		onClosed: onClosed,
 		wake:     make(chan struct{}, 1),
@@ -172,6 +176,8 @@ func (r *Room) SubmitAnswer(p *Player, round int, answer string) error {
 	now := time.Now()
 	rp.answered = true
 	rp.answer = answer
+	rp.answeredAt = now
+	rp.order = r.answersInRoundLocked()
 	r.recorder.RecordAnswer(r.matchID, r.roundID, p.ID, answer, now)
 	p.Send(utils.GameActionDuelAnswer, AnswerAckPayload{Round: round, Answer: answer})
 
@@ -291,7 +297,7 @@ func (r *Room) run() {
 	}()
 
 	ctx, cancel := context.WithTimeout(context.Background(), r.settings.QuestionTimeout)
-	qs, err := r.provider.Questions(ctx, r.settings.Rounds)
+	qs, err := r.mode.Rounds(ctx, r.settings.Rounds)
 	cancel()
 	if err != nil || len(qs) < r.settings.Rounds {
 		slog.Error("could not load questions", "room", r.ID, "error", err, "got", len(qs))
@@ -306,7 +312,7 @@ func (r *Room) run() {
 	}
 	r.questions = qs[:r.settings.Rounds]
 	r.status = utils.RoomStatusActive
-	r.matchID = r.recorder.StartMatch(r.ID, len(r.questions), r.playerIDsLocked())
+	r.matchID = r.recorder.StartMatch(r.ID, r.mode.Info().ID, len(r.questions), r.playerIDsLocked())
 	r.broadcastLocked(utils.GameActionDuelStart, DuelStartPayload{MaxRounds: len(r.questions)})
 	r.mu.Unlock()
 
@@ -332,10 +338,13 @@ func (r *Room) playRound(n int) bool {
 	for _, rp := range r.players {
 		rp.answered = false
 		rp.answer = ""
+		rp.order = 0
 	}
 	r.accepting = true
 	r.fastApplied = false
-	r.deadline = time.Now().Add(r.settings.RoundDuration)
+	duration := r.roundDuration()
+	r.roundStart = time.Now()
+	r.deadline = r.roundStart.Add(duration)
 	r.roundID = r.recorder.StartRound(r.matchID, n, q)
 	r.broadcastLocked(utils.GameActionRoundStart, RoundStartPayload{
 		Round:      n,
@@ -344,7 +353,7 @@ func (r *Room) playRound(n int) bool {
 		Category:   q.Category,
 		Difficulty: q.Difficulty,
 		Choices:    q.Choices,
-		Duration:   int(math.Ceil(r.settings.RoundDuration.Seconds())),
+		Duration:   int(math.Ceil(duration.Seconds())),
 	})
 	r.mu.Unlock()
 
@@ -415,46 +424,52 @@ func (r *Room) resolveRoundLocked() {
 	r.accepting = false
 	q := r.questions[r.round-1]
 
-	var correct []*roomPlayer
-	for _, rp := range r.players {
-		if rp.answered && rp.answer == q.Answer {
-			rp.score++
-			correct = append(correct, rp)
+	answers := make([]RoundAnswer, len(r.players))
+	for i, rp := range r.players {
+		answers[i] = RoundAnswer{PlayerID: rp.player.ID, Answered: rp.answered, Answer: rp.answer, Order: rp.order}
+		if rp.answered {
+			answers[i].Elapsed = rp.answeredAt.Sub(r.roundStart)
 		}
 	}
-
-	// A round is won by being the only player to answer correctly.
-	var winner *string
-	if len(correct) == 1 {
-		correct[0].roundsWon++
-		id := correct[0].player.ID
-		winner = &id
-	}
+	outcome := r.mode.Resolve(q, answers)
 
 	results := make([]PlayerRoundResult, 0, len(r.players))
 	for _, rp := range r.players {
-		isCorrect := rp.answered && rp.answer == q.Answer
 		delta := 0
-		if isCorrect {
+		if outcome.Scored[rp.player.ID] {
 			delta = 1
+			rp.score++
+		}
+		if outcome.Winner != nil && *outcome.Winner == rp.player.ID {
+			rp.roundsWon++
 		}
 		results = append(results, PlayerRoundResult{
 			PlayerID:  rp.player.ID,
 			Answer:    rp.answer,
-			Correct:   isCorrect,
+			Correct:   delta > 0,
 			Delta:     delta,
 			Score:     rp.score,
 			RoundsWon: rp.roundsWon,
 		})
 	}
 
-	r.recorder.ResolveRound(r.matchID, r.roundID, r.round, winner, results)
+	r.recorder.ResolveRound(r.matchID, r.roundID, r.round, outcome.Winner, results)
 	r.broadcastLocked(utils.GameActionRoundResult, RoundResultPayload{
 		Round:         r.round,
-		CorrectAnswer: q.Answer,
-		WinnerID:      winner,
+		CorrectAnswer: outcome.CorrectAnswer,
+		Summary:       outcome.Summary,
+		WinnerID:      outcome.Winner,
 		Results:       results,
 	})
+}
+
+// roundDuration is the configured duration, capped by the mode's own limit.
+func (r *Room) roundDuration() time.Duration {
+	d := r.settings.RoundDuration
+	if m := r.mode.Info().RoundDuration; m > 0 && m < d {
+		d = m
+	}
+	return d
 }
 
 func (r *Room) finish() {
@@ -540,6 +555,18 @@ func (r *Room) removeLocked(target *roomPlayer) {
 	}
 }
 
+// answersInRoundLocked counts answers so far this round, including the one
+// being recorded.
+func (r *Room) answersInRoundLocked() int {
+	n := 0
+	for _, rp := range r.players {
+		if rp.answered {
+			n++
+		}
+	}
+	return n
+}
+
 func (r *Room) allAnsweredLocked() bool {
 	for _, rp := range r.players {
 		if !rp.answered {
@@ -572,6 +599,7 @@ func (r *Room) stateLocked() RoomState {
 	}
 	return RoomState{
 		RoomID:    r.ID,
+		Mode:      r.mode.Info().ID,
 		Private:   r.Private,
 		Status:    r.status,
 		Round:     r.round,

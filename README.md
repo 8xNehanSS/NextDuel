@@ -1,10 +1,19 @@
 # NextDuel
 
-Real-time, head-to-head trivia duels. Two players are matched (or join a
-private room by code), ready up, and race through multiple-choice rounds. The
-first answer in a round cuts the opponent's clock; a round is won by being the
-only player to answer correctly; most rounds won takes the match. Results feed
-a match history and a leaderboard.
+Real-time, head-to-head duels. Pick a game, get matched (or join a private
+room by code), ready up, and race through the rounds. The first answer in a
+round cuts the opponent's clock, and most rounds won takes the match. Results
+feed a match history and per-game leaderboards.
+
+| Game | How a round is won |
+| --- | --- |
+| 🧠 Trivia Duel | Be the only player to answer a general-knowledge question correctly |
+| ➗ Math Sprint | First correct answer to a mental-arithmetic problem (gets harder each round) |
+| 🔤 Word Scramble | First to pick the real word from same-letter decoys |
+| ✊ Rock Paper Scissors | Classic rules; picks stay hidden until the reveal |
+
+Adding another game is a single Go file plus a frontend registry entry; see
+"Game modes" in [CLAUDE.md](CLAUDE.md).
 
 | Part | Stack |
 | --- | --- |
@@ -169,8 +178,8 @@ REST (JSON, `{success, data}` / `{success: false, error}` envelope):
 | POST | `/api/logout` | ✓ | Clears the session |
 | GET | `/api/user` | ✓ | Current user |
 | GET | `/api/stats` | ✓ | Live server statistics |
-| GET | `/api/history/duels?limit=&offset=` | ✓ | Your finished matches + stats |
-| GET | `/api/leaderboard` | ✓ | Top players |
+| GET | `/api/history/duels?limit=&offset=&mode=` | ✓ | Your finished matches + stats (optionally one game) |
+| GET | `/api/leaderboard?mode=` | ✓ | Top players overall, or for one game |
 | GET | `/api/ws` | ✓ | Game websocket |
 
 Websocket messages are `{"type": string, "data": any}`. The protocol is

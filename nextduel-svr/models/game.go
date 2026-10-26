@@ -17,7 +17,7 @@ type Players struct {
 type Match struct {
 	ID uint `gorm:"primaryKey" json:"id"`
 
-	Mode      string `gorm:"size:20;default:'classic';index" json:"mode"`
+	Mode      string `gorm:"size:20;default:'trivia';index" json:"mode"`
 	Status    string `gorm:"size:20;default:'waiting';index" json:"status"`
 	BestOf    int    `gorm:"default:3" json:"best_of"`
 	WinnerID  *uint  `gorm:"index" json:"winner_id"`

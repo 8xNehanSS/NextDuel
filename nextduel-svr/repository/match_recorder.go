@@ -30,7 +30,7 @@ func NewMatchRecorder(db *gorm.DB) *MatchRecorder {
 	return &MatchRecorder{db: db, playerIDs: make(map[string]uint)}
 }
 
-func (m *MatchRecorder) StartMatch(roomID string, bestOf int, players []string) uint {
+func (m *MatchRecorder) StartMatch(roomID string, mode utils.GameMode, bestOf int, players []string) uint {
 	ids, err := m.resolvePlayers(players)
 	if err != nil {
 		slog.Error("recorder: resolve players", "room", roomID, "error", err)
@@ -40,7 +40,7 @@ func (m *MatchRecorder) StartMatch(roomID string, bestOf int, players []string) 
 	err = m.db.Transaction(func(tx *gorm.DB) error {
 		now := time.Now()
 		match := models.Match{
-			Mode:      string(utils.MatchModeClassic),
+			Mode:      string(mode),
 			Status:    string(utils.MatchStatusActive),
 			BestOf:    bestOf,
 			CreatedBy: ids[0],
@@ -50,7 +50,7 @@ func (m *MatchRecorder) StartMatch(roomID string, bestOf int, players []string) 
 			return err
 		}
 		matchID = match.ID
-		if err := logEvent(tx, matchID, nil, nil, utils.MatchEventCreated, map[string]any{"room_id": roomID}); err != nil {
+		if err := logEvent(tx, matchID, nil, nil, utils.MatchEventCreated, map[string]any{"room_id": roomID, "mode": mode}); err != nil {
 			return err
 		}
 		for slot, id := range ids {

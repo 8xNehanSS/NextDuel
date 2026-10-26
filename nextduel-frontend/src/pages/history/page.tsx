@@ -3,6 +3,9 @@ import { Link } from "react-router";
 import { getDuelHistory } from "../../services/api/history";
 import type { DuelHistory, MatchResult } from "../../types/api";
 import { errorMessage } from "../../utils/apiclient";
+import type { GameMode } from "../../types/protocol";
+import GameTabs from "../../components/GameTabs";
+import { gameInfo } from "../../games";
 
 const PAGE_SIZE = 10;
 
@@ -15,12 +18,13 @@ function formatDate(iso: string) {
 
 const HistoryPage = () => {
     const [page, setPage] = useState(0);
+    const [mode, setMode] = useState<GameMode | undefined>(undefined);
     const [history, setHistory] = useState<DuelHistory | null>(null);
     const [error, setError] = useState<string | null>(null);
 
     useEffect(() => {
         const controller = new AbortController();
-        getDuelHistory(PAGE_SIZE, page * PAGE_SIZE, controller.signal)
+        getDuelHistory(PAGE_SIZE, page * PAGE_SIZE, mode, controller.signal)
             .then((h) => {
                 setHistory(h);
                 setError(null);
@@ -29,7 +33,7 @@ const HistoryPage = () => {
                 if (!controller.signal.aborted) setError(errorMessage(err));
             });
         return () => controller.abort();
-    }, [page]);
+    }, [page, mode]);
 
     const totalPages = history ? Math.max(1, Math.ceil(history.total / PAGE_SIZE)) : 1;
     const stats = history?.stats;
@@ -38,6 +42,14 @@ const HistoryPage = () => {
         <div className="page-shell">
             <h1 className="section-title">Match history</h1>
             <p className="section-subtitle">Your finished duels, newest first.</p>
+
+            <GameTabs
+                value={mode}
+                onChange={(m) => {
+                    setMode(m);
+                    setPage(0);
+                }}
+            />
 
             {stats && (
                 <div className="stat-grid" style={{ marginTop: 20 }}>
@@ -72,10 +84,12 @@ const HistoryPage = () => {
                     <h2 className="section-title" style={{ fontSize: 22 }}>
                         No matches yet
                     </h2>
-                    <p className="section-subtitle">Finish a duel and it will show up here.</p>
+                    <p className="section-subtitle">
+                        {mode ? `You haven't finished a ${gameInfo(mode).name} duel yet.` : "Finish a duel and it will show up here."}
+                    </p>
                     <div className="hero-actions" style={{ justifyContent: "center" }}>
-                        <Link to="/lobby" className="btn btn-primary">
-                            Play your first duel
+                        <Link to={mode ? `/lobby?game=${mode}` : "/lobby"} className="btn btn-primary">
+                            Play {mode ? gameInfo(mode).name : "your first duel"}
                         </Link>
                     </div>
                 </div>
@@ -90,6 +104,9 @@ const HistoryPage = () => {
                                 <div className="match-main">
                                     <strong>vs {m.opponent || "unknown"}</strong>
                                     <span className="muted">
+                                        {gameInfo(m.mode).icon} {gameInfo(m.mode).name}
+                                    </span>
+                                    <span className="muted">
                                         {formatDate(m.started_at)}
                                         {m.status === "abandoned" && " · ended by forfeit"}
                                     </span>
@@ -99,7 +116,7 @@ const HistoryPage = () => {
                                         {m.rounds_won} – {m.opponent_rounds_won}
                                     </strong>
                                     <span className="muted">
-                                        rounds · {m.score}/{m.best_of} correct
+                                        rounds{m.mode !== "rps" && ` · ${m.score}/${m.best_of} correct`}
                                     </span>
                                 </div>
                             </div>

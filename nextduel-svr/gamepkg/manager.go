@@ -1,7 +1,6 @@
 package gamepkg
 
 import (
-	"nextduel-svr/questions"
 	"nextduel-svr/utils"
 	"strings"
 	"sync"
@@ -9,33 +8,38 @@ import (
 	serverutils "nex-server/utils"
 )
 
-// GameManager owns websocket sessions, the matchmaking queue and live rooms.
-// All of its maps are guarded by mu; see Room for the lock-ordering rule.
+// GameManager owns websocket sessions, the matchmaking queues (one per game
+// mode) and live rooms. All of its maps are guarded by mu; see Room for the
+// lock-ordering rule.
 type GameManager struct {
 	settings Settings
-	provider questions.Provider
+	modes    Modes
 	recorder Recorder
 
 	mu           sync.Mutex
 	sessions     map[Conn]*Player
 	rooms        map[string]*Room
 	playerRooms  map[string]string // player ID -> room ID
-	queue        *Matchmaking
+	queues       map[utils.GameMode]*Matchmaking
 	shuttingDown bool
 }
 
-func NewGameManager(settings Settings, provider questions.Provider, recorder Recorder) *GameManager {
+func NewGameManager(settings Settings, modes Modes, recorder Recorder) *GameManager {
 	if recorder == nil {
 		recorder = noopRecorder{}
 	}
+	queues := make(map[utils.GameMode]*Matchmaking, len(modes))
+	for id := range modes {
+		queues[id] = NewMatchmaking()
+	}
 	return &GameManager{
 		settings:    settings,
-		provider:    provider,
+		modes:       modes,
 		recorder:    recorder,
 		sessions:    make(map[Conn]*Player),
 		rooms:       make(map[string]*Room),
 		playerRooms: make(map[string]string),
-		queue:       NewMatchmaking(),
+		queues:      queues,
 	}
 }
 
@@ -65,7 +69,7 @@ func (gm *GameManager) EndSession(conn Conn) {
 		return
 	}
 	delete(gm.sessions, conn)
-	gm.queue.Remove(p)
+	gm.removeFromQueuesLocked(p)
 	room := gm.roomOfLocked(p.ID)
 	gm.mu.Unlock()
 
@@ -80,21 +84,27 @@ func (gm *GameManager) EndSession(conn Conn) {
 // ---------------------------------------------------------------------------
 // Queue
 
-func (gm *GameManager) JoinQueue(p *Player) error {
+// JoinQueue matches p against the next player waiting for the same mode.
+func (gm *GameManager) JoinQueue(p *Player, mode utils.GameMode) error {
+	mode = normaliseMode(mode)
 	gm.mu.Lock()
 	defer gm.mu.Unlock()
 
 	if err := gm.checkAvailableLocked(p); err != nil {
 		return err
 	}
+	queue, ok := gm.queues[mode]
+	if !ok {
+		return ErrUnknownMode
+	}
 
-	pair, position := gm.queue.Enqueue(p)
+	pair, position := queue.Enqueue(p)
 	if pair == nil {
-		p.Send(utils.GameActionWaitingQueue, QueuePayload{Position: position})
+		p.Send(utils.GameActionWaitingQueue, QueuePayload{Mode: mode, Position: position})
 		return nil
 	}
 
-	room := gm.newRoomLocked(false)
+	room := gm.newRoomLocked(false, mode)
 	for _, member := range pair {
 		// Cannot fail: the room is brand new and has capacity for two.
 		_ = room.AddPlayer(member, utils.GameActionMatchFound)
@@ -105,7 +115,7 @@ func (gm *GameManager) JoinQueue(p *Player) error {
 
 func (gm *GameManager) LeaveQueue(p *Player) error {
 	gm.mu.Lock()
-	removed := gm.queue.Remove(p)
+	removed := gm.removeFromQueuesLocked(p)
 	gm.mu.Unlock()
 	if !removed {
 		return ErrNotQueued
@@ -117,14 +127,18 @@ func (gm *GameManager) LeaveQueue(p *Player) error {
 // ---------------------------------------------------------------------------
 // Rooms
 
-func (gm *GameManager) CreateRoom(p *Player) error {
+func (gm *GameManager) CreateRoom(p *Player, mode utils.GameMode) error {
+	mode = normaliseMode(mode)
 	gm.mu.Lock()
 	defer gm.mu.Unlock()
 
 	if err := gm.checkAvailableLocked(p); err != nil {
 		return err
 	}
-	room := gm.newRoomLocked(true)
+	if _, ok := gm.modes[mode]; !ok {
+		return ErrUnknownMode
+	}
+	room := gm.newRoomLocked(true, mode)
 	if err := room.AddPlayer(p, utils.GameActionRoomCreated); err != nil {
 		delete(gm.rooms, room.ID)
 		return err
@@ -194,14 +208,16 @@ func (gm *GameManager) RoomOf(playerID string) *Room {
 // Lifecycle
 
 type GameStatistics struct {
-	Rooms          int    `json:"rooms"`
-	ActiveMatches  int    `json:"active_matches"`
-	Queue          int    `json:"queue"`
-	Players        int    `json:"players"`
-	PlayersInRooms int    `json:"players_in_rooms"`
-	PlayersInQueue int    `json:"players_in_queue"`
-	MemoryUsage    string `json:"memory_usage"`
-	CPUUsage       string `json:"cpu_usage"`
+	Rooms         int `json:"rooms"`
+	ActiveMatches int `json:"active_matches"`
+	Queue         int `json:"queue"`
+	// Queues is the number of players waiting per game mode.
+	Queues         map[utils.GameMode]int `json:"queues"`
+	Players        int                    `json:"players"`
+	PlayersInRooms int                    `json:"players_in_rooms"`
+	PlayersInQueue int                    `json:"players_in_queue"`
+	MemoryUsage    string                 `json:"memory_usage"`
+	CPUUsage       string                 `json:"cpu_usage"`
 }
 
 func (gm *GameManager) Statistics() GameStatistics {
@@ -216,13 +232,20 @@ func (gm *GameManager) Statistics() GameStatistics {
 			active++
 		}
 	}
+	queues := make(map[utils.GameMode]int, len(gm.queues))
+	queued := 0
+	for mode, q := range gm.queues {
+		queues[mode] = q.Len()
+		queued += q.Len()
+	}
 	stats := GameStatistics{
 		Rooms:          len(gm.rooms),
 		ActiveMatches:  active,
-		Queue:          gm.queue.Len(),
+		Queue:          queued,
+		Queues:         queues,
 		Players:        len(online),
 		PlayersInRooms: len(gm.playerRooms),
-		PlayersInQueue: gm.queue.Len(),
+		PlayersInQueue: queued,
 	}
 	gm.mu.Unlock()
 
@@ -240,7 +263,10 @@ func (gm *GameManager) Shutdown() {
 	for _, room := range gm.rooms {
 		rooms = append(rooms, room)
 	}
-	queued := gm.queue.Drain()
+	var queued []*Player
+	for _, q := range gm.queues {
+		queued = append(queued, q.Drain()...)
+	}
 	gm.mu.Unlock()
 
 	for _, room := range rooms {
@@ -270,18 +296,30 @@ func (gm *GameManager) checkAvailableLocked(p *Player) error {
 		return ErrShuttingDown
 	case gm.playerRooms[p.ID] != "":
 		return ErrAlreadyInRoom
-	case gm.queue.Contains(p.ID):
-		return ErrAlreadyQueued
+	}
+	for _, q := range gm.queues {
+		if q.Contains(p.ID) {
+			return ErrAlreadyQueued
+		}
 	}
 	return nil
 }
 
-func (gm *GameManager) newRoomLocked(private bool) *Room {
+func (gm *GameManager) removeFromQueuesLocked(p *Player) bool {
+	removed := false
+	for _, q := range gm.queues {
+		removed = q.Remove(p) || removed
+	}
+	return removed
+}
+
+// newRoomLocked requires mode to be registered.
+func (gm *GameManager) newRoomLocked(private bool, mode utils.GameMode) *Room {
 	id := utils.GenerateRoomID()
 	for gm.rooms[id] != nil {
 		id = utils.GenerateRoomID()
 	}
-	room := newRoom(id, private, gm.settings, gm.provider, gm.recorder, gm.onRoomClosed)
+	room := newRoom(id, private, gm.settings, gm.modes[mode], gm.recorder, gm.onRoomClosed)
 	gm.rooms[id] = room
 	return room
 }
@@ -311,4 +349,11 @@ func (gm *GameManager) unmapPlayer(playerID, roomID string) {
 	if gm.playerRooms[playerID] == roomID {
 		delete(gm.playerRooms, playerID)
 	}
+}
+
+func normaliseMode(mode utils.GameMode) utils.GameMode {
+	if mode == "" {
+		return utils.GameModeTrivia
+	}
+	return mode
 }

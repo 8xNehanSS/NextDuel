@@ -107,7 +107,7 @@ func run(cfg config.Config) error {
 // newApp wires the game manager and every route. nex-server's CORS
 // middleware is deliberately not used: the SPA is served same-origin.
 func newApp(cfg config.Config, db *gorm.DB) (http.Handler, *gamepkg.GameManager) {
-	game := gamepkg.NewGameManager(gameSettings(cfg), questionProvider(cfg, db), repository.NewMatchRecorder(db))
+	game := gamepkg.NewGameManager(gameSettings(cfg), newModes(cfg, db), repository.NewMatchRecorder(db))
 	s := server.NewServer(db)
 	s.Register(registerEndpoints, &Services{Server: s, Game: game, Config: cfg})
 
@@ -157,6 +157,18 @@ func gameSettings(cfg config.Config) gamepkg.Settings {
 	s.FastDuelDuration = cfg.Game.FastDuelDuration
 	s.IntermissionDuration = cfg.Game.IntermissionDuration
 	return s
+}
+
+// newModes registers every playable game. Adding a game = implement
+// gamepkg.Mode, add its ID to utils.GameMode, register it here and add it
+// to nextduel-frontend/src/games.ts.
+func newModes(cfg config.Config, db *gorm.DB) gamepkg.Modes {
+	return gamepkg.NewModes(
+		gamepkg.NewTriviaMode(questionProvider(cfg, db)),
+		gamepkg.NewMathMode(),
+		gamepkg.NewScrambleMode(),
+		gamepkg.NewRPSMode(),
+	)
 }
 
 func questionProvider(cfg config.Config, db *gorm.DB) questions.Provider {

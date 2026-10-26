@@ -11,10 +11,19 @@ const (
 	RoomStatusCompleted RoomStatus = "completed"
 )
 
-type MatchMode string
+// GameMode identifies which game a room plays. Stored in matches.mode.
+// Mirrored in nextduel-frontend/src/games.ts.
+type GameMode string
 
 const (
-	MatchModeClassic MatchMode = "classic"
+	GameModeTrivia   GameMode = "trivia"
+	GameModeMath     GameMode = "math"
+	GameModeScramble GameMode = "scramble"
+	GameModeRPS      GameMode = "rps"
+
+	// GameModeLegacyClassic is how trivia matches were stored before modes
+	// existed; database.Migrate rewrites it to GameModeTrivia.
+	GameModeLegacyClassic GameMode = "classic"
 )
 
 type MatchStatus string

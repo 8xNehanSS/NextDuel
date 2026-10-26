@@ -4,7 +4,8 @@ import { useGameStore } from "../../store/gameStore";
 import { useUserStore } from "../../store/userStore";
 import { GameAction } from "../../utils/websocket/events";
 import { socketManager } from "../../utils/websocket/socket";
-import type { PlayerState, RoundStartPayload } from "../../types/protocol";
+import type { GameMode, PlayerState, RoundStartPayload } from "../../types/protocol";
+import { RPS_ICONS, gameInfo } from "../../games";
 
 const choiceKeys = ["1", "2", "3", "4"];
 
@@ -41,6 +42,7 @@ const LobbyView = () => {
     const [copied, setCopied] = useState(false);
     const self = room.players.find((p) => p.id === me);
     const full = room.players.length === 2;
+    const game = gameInfo(room.mode);
 
     async function copyCode() {
         try {
@@ -66,6 +68,17 @@ const LobbyView = () => {
                     {!full && <p className="section-subtitle">Share this code with a friend so they can join.</p>}
                 </div>
             )}
+
+            <div>
+                <span className="chip chip-muted">
+                    {game.icon} {game.name}
+                </span>
+                <ul className="info-list" style={{ marginTop: 10 }}>
+                    {game.rules.map((rule) => (
+                        <li key={rule}>{rule}</li>
+                    ))}
+                </ul>
+            </div>
 
             <div>
                 <h2 className="section-title" style={{ fontSize: 24 }}>
@@ -94,7 +107,23 @@ const LobbyView = () => {
     );
 };
 
-const QuestionView = ({ question }: { question: RoundStartPayload }) => {
+/** The prompt, rendered to suit each game. */
+const Prompt = ({ mode, text }: { mode: GameMode; text: string }) => {
+    if (mode === "scramble") {
+        return (
+            <div className="letter-tiles" aria-label={`Scrambled letters: ${text}`}>
+                {text.split(" ").map((letter, i) => (
+                    <span key={i} className="letter-tile">
+                        {letter}
+                    </span>
+                ))}
+            </div>
+        );
+    }
+    return <h2 className={`question-text${mode === "math" ? " question-math" : ""}`}>{text}</h2>;
+};
+
+const QuestionView = ({ question, mode }: { question: RoundStartPayload; mode: GameMode }) => {
     const timer = useGameStore((s) => s.timer);
     const answer = useGameStore((s) => s.answer);
     const pending = useGameStore((s) => s.pendingAnswer);
@@ -124,6 +153,7 @@ const QuestionView = ({ question }: { question: RoundStartPayload }) => {
 
     const pct = Math.max(0, Math.min(100, (timer / question.duration) * 100));
     const urgent = timer <= 5;
+    const isRps = mode === "rps";
 
     return (
         <div className="panel question-card float-in">
@@ -136,15 +166,15 @@ const QuestionView = ({ question }: { question: RoundStartPayload }) => {
                 <div className={`timer-fill${urgent ? " timer-urgent" : ""}`} style={{ width: `${pct}%` }} />
             </div>
 
-            <h2 className="question-text">{question.question}</h2>
+            <Prompt mode={mode} text={question.question} />
 
             {opponentAnswered && !locked && (
                 <p className="banner banner-warn" role="status">
-                    Your opponent has answered. You have {timer}s left!
+                    Your opponent has {isRps ? "picked" : "answered"}. You have {timer}s left!
                 </p>
             )}
 
-            <div className="choice-grid">
+            <div className={`choice-grid${isRps ? " choice-grid-rps" : ""}`}>
                 {question.choices.map((choice, i) => {
                     const selected = choice === answer || choice === pending;
                     return (
@@ -156,6 +186,11 @@ const QuestionView = ({ question }: { question: RoundStartPayload }) => {
                             onClick={() => choose(choice)}
                         >
                             <span className="choice-key">{choiceKeys[i]}</span>
+                            {isRps && (
+                                <span className="choice-icon" aria-hidden>
+                                    {RPS_ICONS[choice]}
+                                </span>
+                            )}
                             {choice}
                         </button>
                     );
@@ -164,18 +199,19 @@ const QuestionView = ({ question }: { question: RoundStartPayload }) => {
 
             <p className="section-subtitle">
                 {answer
-                    ? "Answer locked in. Waiting for the round to end..."
+                    ? `${isRps ? "Pick" : "Answer"} locked in. Waiting for the round to end...`
                     : pending
                       ? "Submitting..."
-                      : "Click an answer or press 1-4."}
+                      : `Click ${isRps ? "your pick" : "an answer"} or press 1-${question.choices.length}.`}
             </p>
         </div>
     );
 };
 
-const RoundResultView = () => {
+const RoundResultView = ({ mode }: { mode: GameMode }) => {
     const me = useMe();
     const result = useGameStore((s) => s.lastResult)!;
+    const isRps = mode === "rps";
     const nextRound = useGameStore((s) => s.nextRound);
     const timer = useGameStore((s) => s.timer);
     const mine = result.results.find((r) => r.playerId === me);
@@ -190,20 +226,30 @@ const RoundResultView = () => {
             <h2 className="section-title" style={{ fontSize: 28 }}>
                 {headline}
             </h2>
-            <p className="section-subtitle">
-                Correct answer: <strong>{result.correctAnswer}</strong>
-            </p>
+            {result.summary && <p className="section-subtitle">{result.summary}</p>}
+            {result.correctAnswer && (
+                <p className="section-subtitle">
+                    Correct answer: <strong>{result.correctAnswer}</strong>
+                </p>
+            )}
             <ul className="ready-list">
-                {result.results.map((r) => (
-                    <li key={r.playerId}>
-                        <span>{r.playerId === me ? "You" : r.playerId}</span>
-                        <span className={`chip ${r.correct ? "chip-success" : "chip-danger"}`}>
-                            {r.answer ? `${r.answer} ${r.correct ? "✓" : "✗"}` : "No answer"}
-                        </span>
-                    </li>
-                ))}
+                {result.results.map((r) => {
+                    // In RPS a tie is neither right nor wrong.
+                    const tone = r.correct ? "chip-success" : isRps && !result.winnerId ? "chip-muted" : "chip-danger";
+                    const label = !r.answer
+                        ? "No answer"
+                        : isRps
+                          ? `${RPS_ICONS[r.answer] ?? ""} ${r.answer}`
+                          : `${r.answer} ${r.correct ? "✓" : "✗"}`;
+                    return (
+                        <li key={r.playerId}>
+                            <span>{r.playerId === me ? "You" : r.playerId}</span>
+                            <span className={`chip ${tone}`}>{label}</span>
+                        </li>
+                    );
+                })}
             </ul>
-            {mine && !mine.answer && <p className="section-subtitle">Time ran out before you answered.</p>}
+            {mine && !mine.answer && <p className="section-subtitle">Time ran out before you {isRps ? "picked" : "answered"}.</p>}
             {nextRound && <p className="section-subtitle">Round {nextRound} starts in {timer}s...</p>}
         </div>
     );
@@ -215,6 +261,8 @@ const GameOverView = () => {
     const reset = useGameStore((s) => s.reset);
     const over = useGameStore((s) => s.gameOver)!;
     const last = useGameStore((s) => s.lastResult);
+    const mode = useGameStore((s) => s.room?.mode) ?? "trivia";
+    const game = gameInfo(mode);
 
     let title = "It's a draw";
     let tone = "draw";
@@ -228,8 +276,8 @@ const GameOverView = () => {
 
     function playAgain() {
         reset();
-        void socketManager.send(GameAction.JOIN_QUEUE);
-        navigate("/lobby");
+        void socketManager.send(GameAction.JOIN_QUEUE, { mode });
+        navigate(`/lobby?game=${mode}`);
     }
 
     function backToLobby() {
@@ -245,9 +293,9 @@ const GameOverView = () => {
                     {over.winnerId === me ? "Your opponent left the match." : "The match ended early."}
                 </p>
             )}
-            {last && over.reason === "completed" && (
+            {last && over.reason === "completed" && (last.correctAnswer || last.summary) && (
                 <p className="section-subtitle">
-                    Final question answer: <strong>{last.correctAnswer}</strong>
+                    Last round: {last.summary} {last.correctAnswer && <strong>({last.correctAnswer})</strong>}
                 </p>
             )}
             <ul className="ready-list">
@@ -257,14 +305,15 @@ const GameOverView = () => {
                         <li key={p.id}>
                             <span>{p.id === me ? `${p.id} (you)` : p.id}</span>
                             <span className="muted">
-                                {p.roundsWon} rounds · {p.score} correct
+                                {p.roundsWon} rounds won
+                                {mode !== "rps" && ` · ${p.score} ${game.scoredLabel.toLowerCase()}`}
                             </span>
                         </li>
                     ))}
             </ul>
             <div className="hero-actions">
                 <button className="btn btn-primary" onClick={playAgain}>
-                    Play again
+                    Play {game.name} again
                 </button>
                 <button className="btn" onClick={backToLobby}>
                     Back to lobby
@@ -306,6 +355,7 @@ const GamePage = () => {
     }
 
     const inMatch = phase === "starting" || phase === "question" || phase === "round_result";
+    const game = gameInfo(room.mode);
 
     function leave() {
         if (inMatch && !window.confirm("Leaving now forfeits the match. Leave anyway?")) {
@@ -320,7 +370,9 @@ const GamePage = () => {
         <div className="page-shell">
             <div className="game-header">
                 <div>
-                    <h1 className="section-title">Duel room</h1>
+                    <h1 className="section-title">
+                        {game.icon} {game.name}
+                    </h1>
                     <p className="section-subtitle">
                         {room.players.map((p) => (p.id === me ? "You" : p.id)).join(" vs ")}
                     </p>
@@ -347,11 +399,11 @@ const GamePage = () => {
                     {phase === "starting" && (
                         <div className="panel float-in empty-state">
                             <h2 className="section-title pulse">Get ready...</h2>
-                            <p className="section-subtitle">Both players are ready. Loading questions.</p>
+                            <p className="section-subtitle">Both players are ready. Setting up the duel.</p>
                         </div>
                     )}
-                    {phase === "question" && question && <QuestionView key={question.round} question={question} />}
-                    {phase === "round_result" && <RoundResultView />}
+                    {phase === "question" && question && <QuestionView key={question.round} question={question} mode={room.mode} />}
+                    {phase === "round_result" && <RoundResultView mode={room.mode} />}
                     {phase === "game_over" && <GameOverView />}
                 </div>
                 <Scoreboard players={room.players} me={me} />

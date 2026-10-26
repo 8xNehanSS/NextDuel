@@ -8,6 +8,7 @@ import type {
     GameOverPayload,
     IntermissionPayload,
     JoinRoomRequest,
+    ModeRequest,
     PlayerLeftPayload,
     QueuePayload,
     RoomDestroyedPayload,
@@ -77,9 +78,9 @@ export interface ServerEvents {
 /** Payload type of each client -> server message. */
 export interface ClientEvents {
     [GameAction.PING]: undefined;
-    [GameAction.JOIN_QUEUE]: undefined;
+    [GameAction.JOIN_QUEUE]: ModeRequest;
     [GameAction.LEAVE_QUEUE]: undefined;
-    [GameAction.CREATE_ROOM]: undefined;
+    [GameAction.CREATE_ROOM]: ModeRequest;
     [GameAction.JOIN_ROOM]: JoinRoomRequest;
     [GameAction.LEAVE_ROOM]: undefined;
     [GameAction.PLAYER_READY]: undefined;

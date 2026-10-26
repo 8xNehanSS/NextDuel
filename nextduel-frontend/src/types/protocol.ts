@@ -1,5 +1,8 @@
 // Websocket payloads. Mirrors nextduel-svr/gamepkg/protocol.go — keep in sync.
 
+/** Mirrors utils.GameMode in nextduel-svr/utils/game_enums.go. */
+export type GameMode = "trivia" | "math" | "scramble" | "rps";
+
 export type RoomStatus = "waiting" | "starting" | "active" | "completed";
 
 export interface PlayerState {
@@ -11,6 +14,7 @@ export interface PlayerState {
 
 export interface RoomState {
     roomId: string;
+    mode: GameMode;
     private: boolean;
     status: RoomStatus;
     round: number;
@@ -24,6 +28,7 @@ export interface GameErrorPayload {
 }
 
 export interface QueuePayload {
+    mode: GameMode;
     position: number;
 }
 
@@ -70,7 +75,9 @@ export interface PlayerRoundResult {
 
 export interface RoundResultPayload {
     round: number;
+    /** Empty for modes without a single correct answer (rps). */
     correctAnswer: string;
+    summary: string;
     winnerId: string | null;
     results: PlayerRoundResult[];
 }
@@ -93,6 +100,10 @@ export type RoomCloseReason = "opponent_left" | "questions_unavailable" | "serve
 export interface RoomDestroyedPayload {
     roomId: string;
     reason: RoomCloseReason;
+}
+
+export interface ModeRequest {
+    mode: GameMode;
 }
 
 export interface JoinRoomRequest {

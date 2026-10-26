@@ -27,6 +27,7 @@ var (
 	ErrAlreadyAnswered = newError("already_answered", "You have already answered this round.")
 	ErrBadRequest      = newError("bad_request", "Malformed request.")
 	ErrUnknownAction   = newError("unknown_action", "Unknown action.")
+	ErrUnknownMode     = newError("unknown_mode", "That game is not available.")
 	ErrShuttingDown    = newError("shutting_down", "The server is restarting. Please try again shortly.")
 )
 

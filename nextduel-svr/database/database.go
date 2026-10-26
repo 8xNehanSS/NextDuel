@@ -10,6 +10,7 @@ import (
 	"nextduel-svr/config"
 	"nextduel-svr/models"
 	"nextduel-svr/questions"
+	"nextduel-svr/utils"
 	"os"
 	"path/filepath"
 
@@ -45,7 +46,7 @@ func Open(cfg config.Config) (*gorm.DB, error) {
 }
 
 func Migrate(db *gorm.DB) error {
-	return db.AutoMigrate(
+	if err := db.AutoMigrate(
 		&models.User{},
 		&models.Quest{},
 		&models.Players{},
@@ -55,7 +56,13 @@ func Migrate(db *gorm.DB) error {
 		&models.RoundPlayer{},
 		&models.MatchEventLog{},
 		&models.ScoreEvent{},
-	)
+	); err != nil {
+		return err
+	}
+	// Matches recorded before game modes existed were all trivia.
+	return db.Model(&models.Match{}).
+		Where("mode = ? OR mode = ''", string(utils.GameModeLegacyClassic)).
+		Update("mode", string(utils.GameModeTrivia)).Error
 }
 
 func initDefaultData(db *gorm.DB, cfg config.Config) error {

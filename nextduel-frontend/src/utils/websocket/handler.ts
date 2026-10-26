@@ -27,7 +27,7 @@ export const handlers: Handlers = {
         appEventBus.fire("notification", { message: err?.message ?? "Something went wrong.", type: "error" });
     },
 
-    [GameAction.WAITING_QUEUE]: ({ position }) => game().queued(position),
+    [GameAction.WAITING_QUEUE]: ({ mode, position }) => game().queued(mode, position),
     [GameAction.QUEUE_LEFT]: () => game().reset(),
 
     [GameAction.MATCH_FOUND]: (room) => {

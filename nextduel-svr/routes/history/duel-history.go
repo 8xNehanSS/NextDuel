@@ -4,6 +4,7 @@ import (
 	"net/http"
 	"nex-server/server"
 	"nextduel-svr/repository"
+	"nextduel-svr/utils"
 	"strconv"
 )
 
@@ -19,7 +20,8 @@ func GetDuelHistory(ctx *server.Context) error {
 	}
 	offset := max(intParam(ctx, "offset", 0), 0)
 
-	history, err := repository.History(ctx.DB(), ctx.UserID(), limit, offset)
+	mode := utils.GameMode(ctx.GetQueryParam("mode"))
+	history, err := repository.History(ctx.DB(), ctx.UserID(), mode, limit, offset)
 	if err != nil {
 		return ctx.Error(http.StatusInternalServerError, "Failed to load duel history", err)
 	}

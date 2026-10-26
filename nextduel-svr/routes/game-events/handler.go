@@ -29,14 +29,22 @@ var handlers = map[utils.GameAction]eventHandler{
 		p.Send(utils.GameActionPong, nil)
 		return nil
 	},
-	utils.GameActionJoinQueue: func(g *gamepkg.GameManager, p *gamepkg.Player, _ json.RawMessage) error {
-		return g.JoinQueue(p)
+	utils.GameActionJoinQueue: func(g *gamepkg.GameManager, p *gamepkg.Player, data json.RawMessage) error {
+		mode, err := decodeMode(data)
+		if err != nil {
+			return err
+		}
+		return g.JoinQueue(p, mode)
 	},
 	utils.GameActionLeaveQueue: func(g *gamepkg.GameManager, p *gamepkg.Player, _ json.RawMessage) error {
 		return g.LeaveQueue(p)
 	},
-	utils.GameActionCreateRoom: func(g *gamepkg.GameManager, p *gamepkg.Player, _ json.RawMessage) error {
-		return g.CreateRoom(p)
+	utils.GameActionCreateRoom: func(g *gamepkg.GameManager, p *gamepkg.Player, data json.RawMessage) error {
+		mode, err := decodeMode(data)
+		if err != nil {
+			return err
+		}
+		return g.CreateRoom(p, mode)
 	},
 	utils.GameActionJoinRoom: func(g *gamepkg.GameManager, p *gamepkg.Player, data json.RawMessage) error {
 		var req gamepkg.JoinRoomRequest
@@ -89,4 +97,16 @@ func (g *GameEventServices) HandleMessage(ctx *server.Context, conn *websocket.C
 func (g *GameEventServices) HandleDisconnect(_ *server.Context, conn *websocket.Conn, _ any) error {
 	g.Game.EndSession(conn)
 	return nil
+}
+
+// decodeMode reads an optional {mode} payload; absent or null means default.
+func decodeMode(data json.RawMessage) (utils.GameMode, error) {
+	if len(data) == 0 || string(data) == "null" {
+		return "", nil
+	}
+	var req gamepkg.ModeRequest
+	if err := gamepkg.DecodeRequest(data, &req); err != nil {
+		return "", err
+	}
+	return req.Mode, nil
 }

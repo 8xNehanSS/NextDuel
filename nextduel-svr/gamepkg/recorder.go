@@ -14,7 +14,7 @@ import (
 type Recorder interface {
 	// StartMatch is called once both players are ready and questions are
 	// loaded. playerIDs are in slot order.
-	StartMatch(roomID string, bestOf int, playerIDs []string) (matchID uint)
+	StartMatch(roomID string, mode utils.GameMode, bestOf int, playerIDs []string) (matchID uint)
 	StartRound(matchID uint, roundNo int, q questions.Question) (roundID uint)
 	RecordAnswer(matchID, roundID uint, playerID, answer string, at time.Time)
 	ResolveRound(matchID, roundID uint, roundNo int, winnerID *string, results []PlayerRoundResult)
@@ -27,7 +27,7 @@ type Recorder interface {
 
 type noopRecorder struct{}
 
-func (noopRecorder) StartMatch(string, int, []string) uint                            { return 0 }
+func (noopRecorder) StartMatch(string, utils.GameMode, int, []string) uint            { return 0 }
 func (noopRecorder) StartRound(uint, int, questions.Question) uint                    { return 0 }
 func (noopRecorder) RecordAnswer(uint, uint, string, string, time.Time)               {}
 func (noopRecorder) ResolveRound(uint, uint, int, *string, []PlayerRoundResult)       {}

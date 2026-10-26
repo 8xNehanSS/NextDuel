@@ -1,5 +1,7 @@
 // REST response shapes. Mirrors nextduel-svr/repository and routes.
 
+import type { GameMode } from "./protocol";
+
 export interface User {
     id: number;
     username: string;
@@ -11,6 +13,7 @@ export interface User {
 
 export interface ServerStatistics {
     rooms: number;
+    queues: Partial<Record<GameMode, number>>;
     active_matches: number;
     queue: number;
     players: number;
@@ -32,6 +35,7 @@ export type MatchResult = "win" | "loss" | "draw";
 
 export interface MatchSummary {
     match_id: number;
+    mode: GameMode;
     status: "completed" | "abandoned";
     result: MatchResult;
     best_of: number;

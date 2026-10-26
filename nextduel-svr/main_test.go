@@ -153,6 +153,43 @@ func TestEndToEnd(t *testing.T) {
 		t.Fatalf("leaderboard = %+v", board)
 	}
 
+	// --- another game: rock-paper-scissors in a private room ------------------
+	send(t, wa, "create_room", map[string]string{"mode": "rps"})
+	var room struct {
+		RoomID string `json:"roomId"`
+		Mode   string `json:"mode"`
+	}
+	json.Unmarshal(readUntil(t, wa, "room_created"), &room)
+	if room.Mode != "rps" {
+		t.Fatalf("room mode = %q, want rps", room.Mode)
+	}
+	send(t, wb, "join_room", map[string]string{"roomId": room.RoomID})
+	readUntil(t, wb, "room_joined")
+	send(t, wa, "player_ready", nil)
+	send(t, wb, "player_ready", nil)
+
+	picks := [][2]string{{"Rock", "Scissors"}, {"Paper", "Paper"}}
+	for i, pick := range picks {
+		readUntil(t, wa, "round_start")
+		readUntil(t, wb, "round_start")
+		send(t, wa, "duel_answer", map[string]any{"round": i + 1, "answer": pick[0]})
+		send(t, wb, "duel_answer", map[string]any{"round": i + 1, "answer": pick[1]})
+		readUntil(t, wa, "round_result")
+	}
+	json.Unmarshal(readUntil(t, wb, "game_over"), &over)
+	if over.WinnerID == nil || *over.WinnerID != "alice" {
+		t.Fatalf("rps game_over = %+v", over)
+	}
+
+	alice.decode(alice.expect(http.MethodGet, "/api/history/duels?mode=rps", nil, http.StatusOK), &history)
+	if history.Total != 1 || history.Matches[0].Result != "win" {
+		t.Fatalf("rps history = %+v", history)
+	}
+	bob.decode(bob.expect(http.MethodGet, "/api/leaderboard?mode=rps", nil, http.StatusOK), &board)
+	if len(board) != 2 || board[0].Username != "alice" {
+		t.Fatalf("rps leaderboard = %+v", board)
+	}
+
 	// --- rate limiting --------------------------------------------------------
 	limited := false
 	for i := 0; i < 10 && !limited; i++ {

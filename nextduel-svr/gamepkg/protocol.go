@@ -17,6 +17,7 @@ type PlayerState struct {
 
 type RoomState struct {
 	RoomID    string           `json:"roomId"`
+	Mode      utils.GameMode   `json:"mode"`
 	Private   bool             `json:"private"`
 	Status    utils.RoomStatus `json:"status"`
 	Round     int              `json:"round"`
@@ -25,7 +26,8 @@ type RoomState struct {
 }
 
 type QueuePayload struct {
-	Position int `json:"position"`
+	Mode     utils.GameMode `json:"mode"`
+	Position int            `json:"position"`
 }
 
 type PlayerLeftPayload struct {
@@ -71,7 +73,8 @@ type PlayerRoundResult struct {
 
 type RoundResultPayload struct {
 	Round         int                 `json:"round"`
-	CorrectAnswer string              `json:"correctAnswer"`
+	CorrectAnswer string              `json:"correctAnswer"` // "" if the mode has none
+	Summary       string              `json:"summary"`
 	WinnerID      *string             `json:"winnerId"`
 	Results       []PlayerRoundResult `json:"results"`
 }
@@ -93,6 +96,12 @@ type RoomDestroyedPayload struct {
 }
 
 // Requests sent by clients.
+
+// ModeRequest is the payload of join_queue and create_room. An empty body or
+// mode defaults to trivia, for clients that predate game modes.
+type ModeRequest struct {
+	Mode utils.GameMode `json:"mode"`
+}
 
 type JoinRoomRequest struct {
 	RoomID string `json:"roomId"`

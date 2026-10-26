@@ -14,15 +14,15 @@ func TestQueuePairsPlayersIntoOneRoom(t *testing.T) {
 	p1, c1 := h.connect("alice")
 	p2, c2 := h.connect("bob")
 
-	must(t, h.gm.JoinQueue(p1))
+	must(t, h.gm.JoinQueue(p1, utils.GameModeTrivia))
 	if pos := c1.expect(t, utils.GameActionWaitingQueue).Data.(QueuePayload).Position; pos != 1 {
 		t.Fatalf("queue position = %d, want 1", pos)
 	}
-	if err := h.gm.JoinQueue(p1); !errors.Is(err, ErrAlreadyQueued) {
+	if err := h.gm.JoinQueue(p1, utils.GameModeTrivia); !errors.Is(err, ErrAlreadyQueued) {
 		t.Fatalf("double queue err = %v, want ErrAlreadyQueued", err)
 	}
 
-	must(t, h.gm.JoinQueue(p2))
+	must(t, h.gm.JoinQueue(p2, utils.GameModeTrivia))
 	state := c2.expect(t, utils.GameActionMatchFound).Data.(RoomState)
 	c1.expect(t, utils.GameActionMatchFound)
 
@@ -41,7 +41,7 @@ func TestLeaveQueue(t *testing.T) {
 	if err := h.gm.LeaveQueue(p1); !errors.Is(err, ErrNotQueued) {
 		t.Fatalf("err = %v, want ErrNotQueued", err)
 	}
-	must(t, h.gm.JoinQueue(p1))
+	must(t, h.gm.JoinQueue(p1, utils.GameModeTrivia))
 	must(t, h.gm.LeaveQueue(p1))
 	c1.expect(t, utils.GameActionQueueLeft)
 	if h.gm.Statistics().Queue != 0 {
@@ -90,7 +90,7 @@ func TestFullDuelProducesWinner(t *testing.T) {
 	}
 
 	// Both players are free to queue again.
-	must(t, h.gm.JoinQueue(p1))
+	must(t, h.gm.JoinQueue(p1, utils.GameModeTrivia))
 }
 
 func TestFirstAnswerTriggersFastDuel(t *testing.T) {
@@ -158,7 +158,7 @@ func TestPrivateRoomFlow(t *testing.T) {
 	host, hostConn := h.connect("alice")
 	guest, guestConn := h.connect("bob")
 
-	must(t, h.gm.CreateRoom(host))
+	must(t, h.gm.CreateRoom(host, utils.GameModeTrivia))
 	code := hostConn.expect(t, utils.GameActionRoomCreated).Data.(RoomState).RoomID
 	if len(code) != utils.RoomCodeLength {
 		t.Fatalf("room code %q has wrong length", code)
@@ -187,8 +187,8 @@ func TestQueueRoomsAreNotJoinableByCode(t *testing.T) {
 	p1, c1 := h.connect("alice")
 	p2, _ := h.connect("bob")
 	p3, _ := h.connect("carol")
-	must(t, h.gm.JoinQueue(p1))
-	must(t, h.gm.JoinQueue(p2))
+	must(t, h.gm.JoinQueue(p1, utils.GameModeTrivia))
+	must(t, h.gm.JoinQueue(p2, utils.GameModeTrivia))
 	code := c1.expect(t, utils.GameActionMatchFound).Data.(RoomState).RoomID
 
 	if err := h.gm.JoinRoom(p3, code); !errors.Is(err, ErrRoomNotFound) {
@@ -200,7 +200,7 @@ func TestLeavingWaitingRoom(t *testing.T) {
 	h := newHarness(t, nil)
 	host, hostConn := h.connect("alice")
 	guest, _ := h.connect("bob")
-	must(t, h.gm.CreateRoom(host))
+	must(t, h.gm.CreateRoom(host, utils.GameModeTrivia))
 	code := hostConn.expect(t, utils.GameActionRoomCreated).Data.(RoomState).RoomID
 	must(t, h.gm.JoinRoom(guest, code))
 	must(t, h.gm.SetReady(host))
@@ -225,8 +225,8 @@ func TestQuestionFailureAbortsRoom(t *testing.T) {
 	h := newHarness(t, staticProvider{err: errors.New("upstream down")})
 	p1, c1 := h.connect("alice")
 	p2, _ := h.connect("bob")
-	must(t, h.gm.JoinQueue(p1))
-	must(t, h.gm.JoinQueue(p2))
+	must(t, h.gm.JoinQueue(p1, utils.GameModeTrivia))
+	must(t, h.gm.JoinQueue(p2, utils.GameModeTrivia))
 	must(t, h.gm.SetReady(p1))
 	must(t, h.gm.SetReady(p2))
 
@@ -259,7 +259,7 @@ func TestShutdownAbortsRooms(t *testing.T) {
 		t.Fatalf("reason = %q", r.Reason)
 	}
 	p3, _ := h.connect("carol")
-	if err := h.gm.JoinQueue(p3); !errors.Is(err, ErrShuttingDown) {
+	if err := h.gm.JoinQueue(p3, utils.GameModeTrivia); !errors.Is(err, ErrShuttingDown) {
 		t.Fatalf("join during shutdown err = %v", err)
 	}
 }
@@ -276,7 +276,7 @@ func TestConcurrentMatchmaking(t *testing.T) {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			_ = h.gm.JoinQueue(p)
+			_ = h.gm.JoinQueue(p, utils.GameModeTrivia)
 			_ = h.gm.SetReady(p)
 		}()
 	}

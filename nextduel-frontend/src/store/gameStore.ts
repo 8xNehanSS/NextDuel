@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import type {
+    GameMode,
     GameOverPayload,
     PlayerState,
     RoomState,
@@ -22,6 +23,7 @@ export const IN_GAME_PHASES: ReadonlySet<GamePhase> = new Set(["queued", "lobby"
 type GameState = {
     connected: boolean;
     phase: GamePhase;
+    queueMode: GameMode | null;
     queuePosition: number;
     room: RoomState | null;
     maxRounds: number;
@@ -39,7 +41,7 @@ type GameState = {
 
 type GameActions = {
     setConnected: (connected: boolean) => void;
-    queued: (position: number) => void;
+    queued: (mode: GameMode, position: number) => void;
     enteredRoom: (room: RoomState) => void;
     roomUpdated: (room: RoomState) => void;
     starting: (maxRounds: number) => void;
@@ -58,6 +60,7 @@ type GameActions = {
 const initialState: GameState = {
     connected: false,
     phase: "idle",
+    queueMode: null,
     queuePosition: 0,
     room: null,
     maxRounds: 5,
@@ -89,7 +92,7 @@ export const useGameStore = create<GameState & GameActions>((set) => ({
 
     setConnected: (connected) => set({ connected }),
 
-    queued: (queuePosition) => set({ phase: "queued", queuePosition }),
+    queued: (queueMode, queuePosition) => set({ phase: "queued", queueMode, queuePosition }),
 
     enteredRoom: (room) =>
         set({ ...initialState, connected: true, phase: "lobby", room, maxRounds: room.maxRounds }),

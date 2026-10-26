@@ -3,33 +3,41 @@ import { getLeaderboard } from "../../services/api/history";
 import type { LeaderboardEntry } from "../../types/api";
 import { errorMessage } from "../../utils/apiclient";
 import { useUserStore } from "../../store/userStore";
+import type { GameMode } from "../../types/protocol";
+import GameTabs from "../../components/GameTabs";
 
 const LeaderboardPage = () => {
     const me = useUserStore((s) => s.username);
+    const [mode, setMode] = useState<GameMode | undefined>(undefined);
     const [entries, setEntries] = useState<LeaderboardEntry[] | null>(null);
     const [error, setError] = useState<string | null>(null);
 
     useEffect(() => {
         const controller = new AbortController();
-        getLeaderboard(controller.signal)
-            .then(setEntries)
+        getLeaderboard(mode, controller.signal)
+            .then((e) => {
+                setEntries(e);
+                setError(null);
+            })
             .catch((err) => {
                 if (!controller.signal.aborted) setError(errorMessage(err));
             });
         return () => controller.abort();
-    }, []);
+    }, [mode]);
 
     return (
         <div className="page-shell">
             <h1 className="section-title">Leaderboard</h1>
             <p className="section-subtitle">Ranked by wins, then win rate.</p>
 
+            <GameTabs value={mode} onChange={setMode} allLabel="Overall" />
+
             {error && <p className="form-error" style={{ marginTop: 20 }}>Could not load leaderboard: {error}</p>}
             {!entries && !error && <p className="section-subtitle" style={{ marginTop: 20 }}>Loading...</p>}
 
             {entries && entries.length === 0 && (
                 <div className="panel empty-state" style={{ marginTop: 20 }}>
-                    <p className="section-subtitle">No ranked matches have been played yet.</p>
+                    <p className="section-subtitle">No matches have been played{mode ? " in this game" : ""} yet.</p>
                 </div>
             )}
 

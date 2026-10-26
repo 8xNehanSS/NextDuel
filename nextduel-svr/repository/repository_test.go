@@ -33,10 +33,13 @@ func openTestDB(t *testing.T) *gorm.DB {
 	return db
 }
 
-// playMatch records a two-round match through the recorder, exactly as a
-// Room would.
+// playMatch records a trivia match through the recorder, exactly as a Room would.
 func playMatch(rec *MatchRecorder, a, b string, winner *string, status utils.MatchStatus) uint {
-	id := rec.StartMatch("ROOM01", 2, []string{a, b})
+	return playModeMatch(rec, utils.GameModeTrivia, a, b, winner, status)
+}
+
+func playModeMatch(rec *MatchRecorder, mode utils.GameMode, a, b string, winner *string, status utils.MatchStatus) uint {
+	id := rec.StartMatch("ROOM01", mode, 2, []string{a, b})
 	q := questions.Question{ID: "q1", Text: "Q?", Answer: "A", Choices: []string{"A", "B"}}
 	round := rec.StartRound(id, 1, q)
 	rec.RecordAnswer(id, round, a, "A", time.Now())
@@ -58,9 +61,9 @@ func TestRecorderAndHistory(t *testing.T) {
 	if m1 == 0 {
 		t.Fatal("StartMatch returned 0")
 	}
-	playMatch(rec, alice, bob, nil, utils.MatchStatusCompleted)                 // draw
-	playMatch(rec, alice, bob, &bob, utils.MatchStatusAbandoned)                // alice forfeited
-	rec.AbortMatch(rec.StartMatch("ROOM02", 2, []string{alice, bob}), "server") // aborted: not in stats
+	playMatch(rec, alice, bob, nil, utils.MatchStatusCompleted)                                       // draw
+	playMatch(rec, alice, bob, &bob, utils.MatchStatusAbandoned)                                      // alice forfeited
+	rec.AbortMatch(rec.StartMatch("ROOM02", utils.GameModeTrivia, 2, []string{alice, bob}), "server") // aborted: not in stats
 
 	var match models.Match
 	if err := db.First(&match, m1).Error; err != nil {
@@ -75,7 +78,7 @@ func TestRecorderAndHistory(t *testing.T) {
 		t.Fatalf("round_players rows = %d, want 2 (answer + resolve must upsert)", len(rp))
 	}
 
-	h, err := History(db, alice, 10, 0)
+	h, err := History(db, alice, "", 10, 0)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -97,7 +100,7 @@ func TestRecorderAndHistory(t *testing.T) {
 		t.Fatalf("results = %v", results)
 	}
 
-	page, err := History(db, alice, 1, 1)
+	page, err := History(db, alice, "", 1, 1)
 	if err != nil || len(page.Matches) != 1 || page.Total != 3 {
 		t.Fatalf("pagination: %+v, %v", page, err)
 	}
@@ -105,7 +108,7 @@ func TestRecorderAndHistory(t *testing.T) {
 
 func TestHistoryForNewPlayerIsEmpty(t *testing.T) {
 	db := openTestDB(t)
-	h, err := History(db, "nobody", 10, 0)
+	h, err := History(db, "nobody", "", 10, 0)
 	if err != nil {
 		t.Fatalf("History for unknown user returned error: %v", err)
 	}
@@ -124,7 +127,7 @@ func TestLeaderboardOrdering(t *testing.T) {
 	playMatch(rec, b, c, &b, utils.MatchStatusCompleted)
 	playMatch(rec, b, c, &c, utils.MatchStatusCompleted)
 
-	board, err := Leaderboard(db, 10)
+	board, err := Leaderboard(db, "", 10)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -141,5 +144,67 @@ func TestLeaderboardOrdering(t *testing.T) {
 	}
 	if board[0].Rank != 1 || board[0].WinRate != 1 {
 		t.Fatalf("top entry = %+v", board[0])
+	}
+}
+
+func TestPerModeHistoryAndLeaderboard(t *testing.T) {
+	db := openTestDB(t)
+	rec := NewMatchRecorder(db)
+	a, b := "alice", "bob"
+
+	playModeMatch(rec, utils.GameModeTrivia, a, b, &a, utils.MatchStatusCompleted)
+	playModeMatch(rec, utils.GameModeRPS, a, b, &b, utils.MatchStatusCompleted)
+	playModeMatch(rec, utils.GameModeRPS, a, b, &b, utils.MatchStatusCompleted)
+	playModeMatch(rec, utils.GameModeMath, a, b, nil, utils.MatchStatusCompleted)
+
+	h, err := History(db, a, utils.GameModeRPS, 10, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if h.Total != 2 || h.Stats.TotalMatches != 2 || h.Stats.Losses != 2 || h.Stats.Wins != 0 {
+		t.Fatalf("rps history for alice = total %d, stats %+v", h.Total, h.Stats)
+	}
+	for _, m := range h.Matches {
+		if m.Mode != string(utils.GameModeRPS) {
+			t.Fatalf("filtered history contains %q", m.Mode)
+		}
+	}
+	if all, _ := History(db, a, "", 10, 0); all.Total != 4 || all.Stats.TotalMatches != 4 || all.Stats.Draws != 1 {
+		t.Fatalf("unfiltered history = total %d, stats %+v", all.Total, all.Stats)
+	}
+	if none, err := History(db, a, utils.GameModeScramble, 10, 0); err != nil || none.Total != 0 || none.Stats.TotalMatches != 0 {
+		t.Fatalf("unplayed mode history = %+v, %v", none, err)
+	}
+
+	board, err := Leaderboard(db, utils.GameModeRPS, 10)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(board) != 2 || board[0].Username != b || board[0].Wins != 2 || board[1].Losses != 2 {
+		t.Fatalf("rps leaderboard = %+v", board)
+	}
+	trivia, _ := Leaderboard(db, utils.GameModeTrivia, 10)
+	if len(trivia) != 2 || trivia[0].Username != a {
+		t.Fatalf("trivia leaderboard = %+v", trivia)
+	}
+	overall, _ := Leaderboard(db, "", 10)
+	if len(overall) != 2 || overall[0].Username != b || overall[0].TotalMatches != 4 {
+		t.Fatalf("overall leaderboard = %+v", overall)
+	}
+}
+
+func TestMigrateRenamesLegacyClassicMode(t *testing.T) {
+	db := openTestDB(t)
+	legacy := models.Match{Mode: string(utils.GameModeLegacyClassic), Status: string(utils.MatchStatusCompleted)}
+	if err := db.Create(&legacy).Error; err != nil {
+		t.Fatal(err)
+	}
+	if err := database.Migrate(db); err != nil {
+		t.Fatal(err)
+	}
+	var got models.Match
+	db.First(&got, legacy.ID)
+	if got.Mode != string(utils.GameModeTrivia) {
+		t.Fatalf("legacy match mode = %q, want trivia", got.Mode)
 	}
 }
