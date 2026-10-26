@@ -8,22 +8,37 @@ on:
 permissions:
   contents: read
 
+# nextduel-svr depends on the PRIVATE repo 8xNehanSS/NEX-Server-Framework
+# (go.mod: replace nex-server => ../../nex-server). Jobs that need it check it
+# out with a read-only deploy key stored in the NEX_SERVER_DEPLOY_KEY secret.
+# Setup steps: README.md -> "CI".
+
 jobs:
   backend:
     runs-on: ubuntu-latest
+    env:
+      HAS_DEPLOY_KEY: ${{ secrets.NEX_SERVER_DEPLOY_KEY != '' }}
     defaults:
       run:
         working-directory: NextDuel/nextduel-svr
     steps:
-      # go.mod replaces nex-server => ../../nex-server, so both repos are
-      # checked out side by side under the workspace.
+      - name: require nex-server deploy key
+        if: env.HAS_DEPLOY_KEY != 'true'
+        working-directory: .
+        run: |
+          echo "::error title=Missing secret::NEX_SERVER_DEPLOY_KEY is not set (or not available to this run, e.g. a PR from a fork). See README.md -> CI."
+          exit 1
+
+      # Both repos are checked out side by side so ../../nex-server resolves.
       - uses: actions/checkout@v4
         with:
           path: NextDuel
       - uses: actions/checkout@v4
         with:
           repository: 8xNehanSS/NEX-Server-Framework
+          ssh-key: ${{ secrets.NEX_SERVER_DEPLOY_KEY }}
           path: nex-server
+          persist-credentials: false
 
       - uses: actions/setup-go@v5
         with:
@@ -63,7 +78,9 @@ jobs:
       - uses: actions/checkout@v4
         with:
           repository: 8xNehanSS/NEX-Server-Framework
+          ssh-key: ${{ secrets.NEX_SERVER_DEPLOY_KEY }}
           path: nex-server
+          persist-credentials: false
       - uses: docker/setup-buildx-action@v3
       - name: build image
         uses: docker/build-push-action@v6

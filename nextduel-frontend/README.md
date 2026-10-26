@@ -5,9 +5,11 @@ React 19 + TypeScript + Vite single-page app for NextDuel. See the
 
 ```bash
 npm install
-npm run dev      # http://localhost:5173, proxies /api (incl. websocket) to :8080
+npm run dev      # http://localhost:5173, proxies /api (incl. websocket) to the backend
 npm run lint
 npm run build    # outputs dist/, served by the Go server via HTML_ROOT
 ```
 
-Set `VITE_BACKEND_URL` to proxy to a backend other than `http://localhost:8080`.
+The backend port is read from `../nextduel-svr/.env` (`PORT`). Set
+`VITE_BACKEND_URL` to proxy somewhere else entirely. Usually you want
+`npm run dev` from the repo root, which starts the backend too.

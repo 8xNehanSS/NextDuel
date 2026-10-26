@@ -1,0 +1,18 @@
+{
+  "name": "nextduel",
+  "private": true,
+  "description": "Dev scripts for the NextDuel monorepo (Go backend + React frontend).",
+  "type": "module",
+  "scripts": {
+    "setup": "node scripts/setup.mjs && npm install --no-audit --no-fund",
+    "dev": "concurrently --kill-others-on-fail -n api,web -c blue,magenta \"npm:dev:api\" \"npm:dev:web\"",
+    "dev:api": "cd nextduel-svr && go run .",
+    "dev:web": "npm --prefix nextduel-frontend run dev",
+    "build": "npm --prefix nextduel-frontend run build && cd nextduel-svr && go build -o bin/ .",
+    "start": "npm --prefix nextduel-frontend run build && cd nextduel-svr && go run .",
+    "test": "cd nextduel-svr && go vet ./... && go test ./... && cd .. && npm --prefix nextduel-frontend run lint && npm --prefix nextduel-frontend run build"
+  },
+  "devDependencies": {
+    "concurrently": "^9.2.1"
+  }
+}

@@ -24,26 +24,37 @@ Projects/
 └── nex-server/    ← git clone https://github.com/8xNehanSS/NEX-Server-Framework nex-server
 ```
 
+`NEX-Server-Framework` is a **private** repository, so you need read access to
+it. `npm run setup` clones it with your normal git credentials.
+
 ## Local development
 
-Prerequisites: Go 1.25+, Node 22+.
+Prerequisites: Go 1.25+, Node 20+ (22 recommended), git.
 
 ```bash
-# 1. backend (http://localhost:8080)
-cd nextduel-svr
-go run .
-
-# 2. frontend with hot reload (http://localhost:5173, proxies /api to :8080)
-cd nextduel-frontend
-npm install
-npm run dev
+npm run setup   # one-time: clones nex-server if missing, creates nextduel-svr/.env
+                # (picks a free port if 8080 is taken), installs all dependencies
+npm run dev     # backend + frontend with hot reload -> http://localhost:5173
 ```
 
-To serve the production build from the Go server instead, run `npm run build`
-and start the backend with `HTML_ROOT=../nextduel-frontend/dist`.
+All commands run from the repo root:
+
+| Command | What it does |
+| --- | --- |
+| `npm run setup` | Safe to re-run. Adds new settings to an existing `.env` without overwriting yours |
+| `npm run dev` | Go backend + Vite dev server side by side; open the URL Vite prints |
+| `npm start` | Builds the frontend, then serves everything from Go at `http://localhost:<PORT>` |
+| `npm run build` | Frontend build + backend binary in `nextduel-svr/bin/` |
+| `npm test` | Backend vet + tests, frontend lint + typecheck/build |
+
+Local settings live in `nextduel-svr/.env` (template:
+[`nextduel-svr/.env.example`](nextduel-svr/.env.example)). The Vite proxy
+reads `PORT` from that file, so changing the backend port needs no other edits.
+The local template uses shorter round timers for faster manual testing.
 
 No account exists on a fresh database. Register through the UI, or set
-`ADMIN_PASSWORD` before first start to create an `admin` user.
+`ADMIN_PASSWORD` in `.env` before first start to create an `admin` user. To
+play a duel by yourself, sign in as a second user in a private window.
 
 ## Configuration
 
@@ -73,6 +84,28 @@ tests against a real SQLite file, and an end-to-end test
 (`main_test.go`) that registers two users and plays a full duel over real
 websockets. CI (`.github/workflows/ci.yml`) runs all of this plus a Docker
 build.
+
+## CI
+
+The backend and Docker jobs must check out the private `NEX-Server-Framework`
+repo. They use a read-only **deploy key**, which grants access to that one
+repository only. One-time setup:
+
+1. Generate a key pair with no passphrase. Run this outside the repo so the key is never committed:
+   ```bash
+   ssh-keygen -t ed25519 -N "" -C "nextduel-ci" -f nextduel-ci-key
+   ```
+2. **NEX-Server-Framework** → Settings → Deploy keys → *Add deploy key*:
+   paste `nextduel-ci-key.pub` and leave *Allow write access* unchecked.
+3. **NextDuel** → Settings → Secrets and variables → Actions → *New repository
+   secret*: name `NEX_SERVER_DEPLOY_KEY`, value = the full contents of
+   `nextduel-ci-key` (the private key, including the `BEGIN`/`END` lines).
+4. Delete both local key files and re-run the failed workflow.
+
+If the secret is missing, the backend job fails immediately with an explanatory
+error instead of a confusing checkout failure. Pull requests from forks never
+receive secrets, so their backend job fails the same way; the frontend job
+still runs.
 
 ## Deployment
 

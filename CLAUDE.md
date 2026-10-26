@@ -11,6 +11,11 @@ ready up, then play `GAME_ROUNDS` multiple-choice rounds over a websocket.
 ## Commands
 
 ```bash
+# from the repo root (see package.json / scripts/setup.mjs)
+npm run setup                     # clones ../nex-server if missing, writes nextduel-svr/.env, installs deps
+npm run dev                       # backend + Vite together; backend PORT comes from nextduel-svr/.env
+npm test                          # everything CI checks except -race and gofmt
+
 # backend (run from nextduel-svr/)
 go build ./... && go vet ./...
 go test ./... -count=1           # -race needs cgo; not available on the Windows dev box, CI runs it
@@ -20,13 +25,13 @@ go run .                          # :8080
 # frontend (run from nextduel-frontend/)
 npm run lint                      # must be clean, CI enforces it
 npm run build                     # tsc -b + vite build
-npm run dev                       # :5173, proxies /api + ws to :8080
+npm run dev                       # 127.0.0.1:5173, proxies /api + ws to PORT from ../nextduel-svr/.env
 ```
 
 ## External dependency: nex-server
 
 `go.mod` has `replace nex-server => ../../nex-server`. The framework is a
-**separate repo** (github.com/8xNehanSS/NEX-Server-Framework) checked out as a
+**separate, private repo** (github.com/8xNehanSS/NEX-Server-Framework) checked out as a
 sibling of this repo. Do not edit it from here without asking. Things it
 provides and constraints it imposes:
 
@@ -131,6 +136,10 @@ The server pushes full `RoomState` snapshots (`room_state`, `match_found`,
 ## Gotchas
 
 - Windows dev box: files may be CRLF on checkout; `.gitattributes` normalises. Run `gofmt -w` before committing.
+- CI checks out the private nex-server repo with the `NEX_SERVER_DEPLOY_KEY` secret (read-only deploy key; see README "CI"). Any new job that builds the backend needs that checkout step too.
 - The Docker build context is the **parent** directory (needs `nex-server/`);
   ignore rules live in `Dockerfile.dockerignore`.
 - `nextduel.db` and `sessions/` in `nextduel-svr/` are local dev data (gitignored).
+- On the main dev machine port 8080 is taken by a system process, so the local
+  backend runs on 8081 (set in the gitignored `nextduel-svr/.env`).
+- Vite binds `127.0.0.1` on purpose; `localhost` resolved to an unreachable `::1` listener on Windows.
