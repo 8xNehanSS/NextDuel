@@ -1,26 +1,48 @@
+# Production-style stack: NextDuel behind Caddy (automatic HTTPS).
+#
+#   cp .env.example .env   # then edit DOMAIN, ADMIN_PASSWORD, ...
+#   docker compose up -d --build
+#
+# The build context is the parent directory; see the Dockerfile header.
 services:
   nextduel:
     image: nextduel:latest
+    build:
+      context: ..
+      dockerfile: NextDuel/Dockerfile
+      args:
+        VERSION: ${VERSION:-dev}
     container_name: nextduel
     restart: unless-stopped
     expose:
       - "8080"
     environment:
       PORT: "8080"
-      SERVER_ROOT: "."
-      COOKIE_KEY: "NEX_SERVER"
+      COOKIE_KEY: ${COOKIE_KEY:-NEX_SERVER}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-}
+      # Only Caddy can reach this container, so X-Forwarded-For is trustworthy.
+      TRUST_PROXY: "true"
+      OPENTDB_ENABLED: ${OPENTDB_ENABLED:-true}
+      LOG_FORMAT: json
+      LOG_LEVEL: ${LOG_LEVEL:-info}
     volumes:
-      - ./nextduel.db:/app/nextduel.db
+      - nextduel_data:/app/nextduel-svr/data
+      - nextduel_sessions:/app/nextduel-svr/sessions
     networks:
       - web
 
   caddy:
-    image: caddy:latest
+    image: caddy:2.8
     container_name: caddy
     restart: unless-stopped
+    depends_on:
+      nextduel:
+        condition: service_healthy
     ports:
       - "80:80"
       - "443:443"
+    environment:
+      DOMAIN: ${DOMAIN:-localhost}
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
       - caddy_data:/data
@@ -32,5 +54,7 @@ networks:
   web:
 
 volumes:
+  nextduel_data:
+  nextduel_sessions:
   caddy_data:
   caddy_config:

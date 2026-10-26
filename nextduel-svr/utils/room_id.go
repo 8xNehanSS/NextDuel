@@ -1,19 +1,26 @@
 package utils
 
 import (
-	"math/rand"
-	"time"
+	"crypto/rand"
+	"math/big"
 )
 
-const charset = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
+// Unambiguous alphabet (no 0/O, 1/I/L) so codes are easy to read aloud.
+const roomCodeCharset = "ABCDEFGHJKMNPQRSTUVWXYZ23456789"
 
+const RoomCodeLength = 6
+
+// GenerateRoomID returns a short, human-shareable room code.
+// Uniqueness against live rooms is enforced by the caller.
 func GenerateRoomID() string {
-	rand.Seed(time.Now().UnixNano())
-
-	b := make([]byte, 8)
+	b := make([]byte, RoomCodeLength)
+	max := big.NewInt(int64(len(roomCodeCharset)))
 	for i := range b {
-		b[i] = charset[rand.Intn(len(charset))]
+		n, err := rand.Int(rand.Reader, max)
+		if err != nil {
+			panic("crypto/rand unavailable: " + err.Error())
+		}
+		b[i] = roomCodeCharset[n.Int64()]
 	}
-
-	return "room_" + string(b)
+	return string(b)
 }

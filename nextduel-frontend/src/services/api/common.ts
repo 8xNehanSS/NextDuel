@@ -1,60 +1,9 @@
-import { api } from "../../utils/apiclient";
-import { navigationService } from "../../utils/navigationService";
-import { useUserStore } from "../../store/userStore";
-import { appEventBus } from "../../utils/eventbus";
-
-export interface ServerResponse<T> {
-    success: boolean;
-    message?: string;
-    data?: T;
-}
-
-export interface ServerStatistics {
-    rooms: number;
-    queue: number;
-    players: number;
-    players_in_rooms: number;
-    players_in_queue: number;
-    memory_usage: string;
-    cpu_usage: string;
-}
-
-export async function fetchServerStatistics(): Promise<ServerStatistics> {
-    const response = await api.get("/health");
-    return response as ServerStatistics;
-}
+import { api, HttpError } from "../../utils/apiclient";
+import type { ServerStatistics, User } from "../../types/api";
 
 export interface LoginRequest {
     username: string;
     password: string;
-}
-
-export async function login(request: LoginRequest): Promise<void> {
-    const redirectParam = new URLSearchParams(window.location.search).get("redirect");
-    let ep = "/login";
-    if (redirectParam) {
-        ep += `?redirect=${encodeURIComponent(redirectParam)}`;
-    }
-    const response = await api.post<{ success: boolean; redirect?: string }>(ep, request);
-    const user = await getUser();
-    if (user?.username) {
-        useUserStore.getState().setUser(user.username);
-    }
-    appEventBus.fire("notification", { message: "Logged in successfully", type: "success" });
-    navigationService.go(response?.redirect || redirectParam || "/");
-}
-
-export interface UserRequest {
-    username: string;
-}
-
-export async function getUser(): Promise<UserRequest> {
-    const response = await api.get("/user") as ServerResponse<UserRequest>;
-    return response.data as UserRequest;
-}
-
-export async function logout() {
-    await api.post("/logout");
 }
 
 export interface RegisterRequest {
@@ -63,11 +12,30 @@ export interface RegisterRequest {
     email: string;
 }
 
-export async function register(request: RegisterRequest) {
-    const response = await api.post("/register", request) as ServerResponse<any>;
-    if (!response.success) {
-        throw new Error(response.message);
-    } else {
-        navigationService.go("/login");
+export function fetchServerStatistics(signal?: AbortSignal): Promise<ServerStatistics> {
+    return api.get<ServerStatistics>("/stats", { signal });
+}
+
+export function login(request: LoginRequest): Promise<{ username: string }> {
+    return api.post<{ username: string }>("/login", request);
+}
+
+export async function logout(): Promise<void> {
+    await api.post("/logout");
+}
+
+export function register(request: RegisterRequest): Promise<User> {
+    return api.post<User>("/register", request);
+}
+
+/** Returns the current user, or null when not signed in. */
+export async function getUser(): Promise<User | null> {
+    try {
+        return await api.get<User>("/user");
+    } catch (error) {
+        if (error instanceof HttpError && error.status === 401) {
+            return null;
+        }
+        throw error;
     }
 }

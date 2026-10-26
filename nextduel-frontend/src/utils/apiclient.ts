@@ -1,98 +1,105 @@
-// httpClient.ts
-
 type HttpMethod = "GET" | "POST" | "PUT" | "DELETE" | "PATCH";
 
 interface RequestOptions<TBody = unknown> {
-  method?: HttpMethod;
-  body?: TBody;
-  headers?: Record<string, string>;
-  query?: Record<string, string | number | boolean | undefined>;
-  signal?: AbortSignal;
+    method?: HttpMethod;
+    body?: TBody;
+    headers?: Record<string, string>;
+    query?: Record<string, string | number | boolean | undefined>;
+    signal?: AbortSignal;
 }
 
-class HttpError extends Error {
-  status: number;
-  data: unknown;
-
-  constructor(status: number, message: string, data: unknown) {
-    super(message);
-    this.status = status;
-    this.data = data;
-  }
+/** Envelope used by nex-server's ctx.Success / ctx.Created / ctx.Error. */
+interface Envelope<T> {
+    success: boolean;
+    data?: T;
+    error?: string;
 }
 
-const BASE_URL = "/api"; // Change this to your actual API base URL
+export class HttpError extends Error {
+    readonly status: number;
+    readonly data: unknown;
+
+    constructor(status: number, message: string, data: unknown) {
+        super(message);
+        this.name = "HttpError";
+        this.status = status;
+        this.data = data;
+    }
+}
+
+const BASE_URL = "/api";
 
 function buildQuery(query?: RequestOptions["query"]) {
-  if (!query) return "";
-  const params = new URLSearchParams();
-
-  Object.entries(query).forEach(([key, value]) => {
-    if (value !== undefined && value !== null) {
-      params.append(key, String(value));
+    if (!query) return "";
+    const params = new URLSearchParams();
+    for (const [key, value] of Object.entries(query)) {
+        if (value !== undefined && value !== null) {
+            params.append(key, String(value));
+        }
     }
-  });
-
-  const queryString = params.toString();
-  return queryString ? `?${queryString}` : "";
+    const qs = params.toString();
+    return qs ? `?${qs}` : "";
 }
 
-async function request<TResponse, TBody = unknown>(
-  endpoint: string,
-  options: RequestOptions<TBody> = {}
-): Promise<TResponse> {
-  const {
-    method = "GET",
-    body,
-    headers = {},
-    query,
-    signal,
-  } = options;
+function isEnvelope(value: unknown): value is Envelope<unknown> {
+    return typeof value === "object" && value !== null && "success" in value;
+}
 
-  const url = `${BASE_URL}${endpoint}${buildQuery(query)}`;
+/**
+ * Performs a request and returns the parsed body. Responses wrapped in the
+ * server's {success, data} envelope are unwrapped to `data`. Non-2xx responses
+ * throw HttpError carrying the server's message.
+ */
+async function request<TResponse, TBody = unknown>(endpoint: string, options: RequestOptions<TBody> = {}): Promise<TResponse> {
+    const { method = "GET", body, headers = {}, query, signal } = options;
 
-  const res = await fetch(url, {
-    method,
-    headers: {
-      "Content-Type": "application/json",
-      ...headers,
-    },
-    body: body ? JSON.stringify(body) : undefined,
-    signal,
-  });
+    const res = await fetch(`${BASE_URL}${endpoint}${buildQuery(query)}`, {
+        method,
+        credentials: "same-origin",
+        headers: {
+            Accept: "application/json",
+            ...(body !== undefined ? { "Content-Type": "application/json" } : {}),
+            ...headers,
+        },
+        body: body !== undefined ? JSON.stringify(body) : undefined,
+        signal,
+    });
 
-  let data: any;
+    let data: unknown = null;
+    if (res.status !== 204) {
+        try {
+            data = await res.json();
+        } catch {
+            data = null;
+        }
+    }
 
-  try {
-    data = await res.json();
-  } catch {
-    data = null;
-  }
+    if (!res.ok) {
+        const message = isEnvelope(data) && data.error ? data.error : res.statusText || "Request failed";
+        throw new HttpError(res.status, message, data);
+    }
 
-  if (res.status === 303) {
-    return data as TResponse;
-  }
-
-  if (!res.ok) {
-    throw new HttpError(res.status, res.statusText, data);
-  }
-
-  return data as TResponse;
+    return (isEnvelope(data) ? data.data : data) as TResponse;
 }
 
 export const api = {
-  get: <T>(url: string, options?: Omit<RequestOptions, "body" | "method">) =>
-    request<T>(url, { ...options, method: "GET" }),
+    get: <T>(url: string, options?: Omit<RequestOptions, "body" | "method">) => request<T>(url, { ...options, method: "GET" }),
 
-  post: <T, B = unknown>(url: string, body?: B, options?: RequestOptions<B>) =>
-    request<T, B>(url, { ...options, body, method: "POST" }),
+    post: <T, B = unknown>(url: string, body?: B, options?: RequestOptions<B>) =>
+        request<T, B>(url, { ...options, body, method: "POST" }),
 
-  put: <T, B = unknown>(url: string, body?: B, options?: RequestOptions<B>) =>
-    request<T, B>(url, { ...options, body, method: "PUT" }),
+    put: <T, B = unknown>(url: string, body?: B, options?: RequestOptions<B>) =>
+        request<T, B>(url, { ...options, body, method: "PUT" }),
 
-  patch: <T, B = unknown>(url: string, body?: B, options?: RequestOptions<B>) =>
-    request<T, B>(url, { ...options, body, method: "PATCH" }),
+    patch: <T, B = unknown>(url: string, body?: B, options?: RequestOptions<B>) =>
+        request<T, B>(url, { ...options, body, method: "PATCH" }),
 
-  delete: <T>(url: string, options?: RequestOptions) =>
-    request<T>(url, { ...options, method: "DELETE" }),
+    delete: <T>(url: string, options?: RequestOptions) => request<T>(url, { ...options, method: "DELETE" }),
 };
+
+export function errorMessage(error: unknown, fallback = "Something went wrong"): string {
+    if (error instanceof HttpError || error instanceof Error) {
+        return error.message || fallback;
+    }
+    return fallback;
+}

@@ -1,33 +1,201 @@
 package gamepkg
 
 import (
-	"fmt"
-	"log"
-	serverutils "nex-server/utils"
+	"nextduel-svr/questions"
 	"nextduel-svr/utils"
+	"strings"
+	"sync"
 
-	"gorm.io/gorm"
+	serverutils "nex-server/utils"
 )
 
+// GameManager owns websocket sessions, the matchmaking queue and live rooms.
+// All of its maps are guarded by mu; see Room for the lock-ordering rule.
 type GameManager struct {
-	rooms       map[string]*Room
-	playerRooms map[string]string
-	matchmaker  *Matchmaking
+	settings Settings
+	provider questions.Provider
+	recorder Recorder
 
-	db *gorm.DB
+	mu           sync.Mutex
+	sessions     map[Conn]*Player
+	rooms        map[string]*Room
+	playerRooms  map[string]string // player ID -> room ID
+	queue        *Matchmaking
+	shuttingDown bool
 }
 
-func NewGameManager(db *gorm.DB) *GameManager {
+func NewGameManager(settings Settings, provider questions.Provider, recorder Recorder) *GameManager {
+	if recorder == nil {
+		recorder = noopRecorder{}
+	}
 	return &GameManager{
+		settings:    settings,
+		provider:    provider,
+		recorder:    recorder,
+		sessions:    make(map[Conn]*Player),
 		rooms:       make(map[string]*Room),
 		playerRooms: make(map[string]string),
-		db:          db,
-		matchmaker:  NewMatchmaking(db),
+		queue:       NewMatchmaking(),
 	}
 }
 
+// ---------------------------------------------------------------------------
+// Sessions
+
+// Session returns the Player for conn, creating it on first use. A user with
+// two tabs open has two sessions; only the session that joined a room can act
+// in it.
+func (gm *GameManager) Session(userID string, conn Conn) *Player {
+	gm.mu.Lock()
+	defer gm.mu.Unlock()
+	if p, ok := gm.sessions[conn]; ok {
+		return p
+	}
+	p := NewPlayer(userID, conn)
+	gm.sessions[conn] = p
+	return p
+}
+
+// EndSession is called when a websocket closes. Leaving mid-match forfeits.
+func (gm *GameManager) EndSession(conn Conn) {
+	gm.mu.Lock()
+	p, ok := gm.sessions[conn]
+	if !ok {
+		gm.mu.Unlock()
+		return
+	}
+	delete(gm.sessions, conn)
+	gm.queue.Remove(p)
+	room := gm.roomOfLocked(p.ID)
+	gm.mu.Unlock()
+
+	if room != nil {
+		if err := room.Leave(p); err == nil {
+			gm.unmapPlayer(p.ID, room.ID)
+		}
+	}
+	p.Close()
+}
+
+// ---------------------------------------------------------------------------
+// Queue
+
+func (gm *GameManager) JoinQueue(p *Player) error {
+	gm.mu.Lock()
+	defer gm.mu.Unlock()
+
+	if err := gm.checkAvailableLocked(p); err != nil {
+		return err
+	}
+
+	pair, position := gm.queue.Enqueue(p)
+	if pair == nil {
+		p.Send(utils.GameActionWaitingQueue, QueuePayload{Position: position})
+		return nil
+	}
+
+	room := gm.newRoomLocked(false)
+	for _, member := range pair {
+		// Cannot fail: the room is brand new and has capacity for two.
+		_ = room.AddPlayer(member, utils.GameActionMatchFound)
+		gm.playerRooms[member.ID] = room.ID
+	}
+	return nil
+}
+
+func (gm *GameManager) LeaveQueue(p *Player) error {
+	gm.mu.Lock()
+	removed := gm.queue.Remove(p)
+	gm.mu.Unlock()
+	if !removed {
+		return ErrNotQueued
+	}
+	p.Send(utils.GameActionQueueLeft, nil)
+	return nil
+}
+
+// ---------------------------------------------------------------------------
+// Rooms
+
+func (gm *GameManager) CreateRoom(p *Player) error {
+	gm.mu.Lock()
+	defer gm.mu.Unlock()
+
+	if err := gm.checkAvailableLocked(p); err != nil {
+		return err
+	}
+	room := gm.newRoomLocked(true)
+	if err := room.AddPlayer(p, utils.GameActionRoomCreated); err != nil {
+		delete(gm.rooms, room.ID)
+		return err
+	}
+	gm.playerRooms[p.ID] = room.ID
+	return nil
+}
+
+func (gm *GameManager) JoinRoom(p *Player, code string) error {
+	code = strings.ToUpper(strings.TrimSpace(code))
+	if code == "" {
+		return ErrBadRequest
+	}
+
+	gm.mu.Lock()
+	defer gm.mu.Unlock()
+
+	if err := gm.checkAvailableLocked(p); err != nil {
+		return err
+	}
+	room, ok := gm.rooms[code]
+	if !ok || !room.Private {
+		return ErrRoomNotFound
+	}
+	if err := room.AddPlayer(p, utils.GameActionRoomJoined); err != nil {
+		return err
+	}
+	gm.playerRooms[p.ID] = room.ID
+	return nil
+}
+
+func (gm *GameManager) LeaveRoom(p *Player) error {
+	room := gm.RoomOf(p.ID)
+	if room == nil {
+		return ErrNotInRoom
+	}
+	if err := room.Leave(p); err != nil {
+		return err
+	}
+	gm.unmapPlayer(p.ID, room.ID)
+	return nil
+}
+
+func (gm *GameManager) SetReady(p *Player) error {
+	room := gm.RoomOf(p.ID)
+	if room == nil {
+		return ErrNotInRoom
+	}
+	return room.SetReady(p)
+}
+
+func (gm *GameManager) SubmitAnswer(p *Player, round int, answer string) error {
+	room := gm.RoomOf(p.ID)
+	if room == nil {
+		return ErrNotInRoom
+	}
+	return room.SubmitAnswer(p, round, answer)
+}
+
+func (gm *GameManager) RoomOf(playerID string) *Room {
+	gm.mu.Lock()
+	defer gm.mu.Unlock()
+	return gm.roomOfLocked(playerID)
+}
+
+// ---------------------------------------------------------------------------
+// Lifecycle
+
 type GameStatistics struct {
 	Rooms          int    `json:"rooms"`
+	ActiveMatches  int    `json:"active_matches"`
 	Queue          int    `json:"queue"`
 	Players        int    `json:"players"`
 	PlayersInRooms int    `json:"players_in_rooms"`
@@ -36,150 +204,111 @@ type GameStatistics struct {
 	CPUUsage       string `json:"cpu_usage"`
 }
 
-func (gm *GameManager) GetStatistics() GameStatistics {
-	return GameStatistics{
-		Rooms:          len(gm.rooms),
-		Queue:          len(gm.matchmaker.GetQueue()),
-		Players:        len(gm.playerRooms),
-		PlayersInRooms: len(gm.playerRooms),
-		PlayersInQueue: len(gm.matchmaker.GetQueue()),
-		MemoryUsage:    serverutils.GetMemoryUsage(),
-		CPUUsage:       serverutils.GetCPUUsage(),
+func (gm *GameManager) Statistics() GameStatistics {
+	gm.mu.Lock()
+	online := make(map[string]struct{}, len(gm.sessions))
+	for _, p := range gm.sessions {
+		online[p.ID] = struct{}{}
 	}
-}
-
-func (gm *GameManager) AddToQueue(p *Player) (*Room, bool, error) {
-	if _, inRoom := gm.playerRooms[p.ID]; inRoom {
-		return nil, false, fmt.Errorf("Player already in a room")
-	}
-
-	if gm.matchmaker.IsPlayerInQueue(p) {
-		return nil, false, fmt.Errorf("Player already in queue")
-	}
-
-	room, matched := gm.matchmaker.AddPlayer(p)
-	if matched {
-		gm.attachRoomLifecycle(room)
-		gm.rooms[room.ID] = room
-		players := room.GetPlayers()
-		for _, player := range players {
-			gm.AddPlayerToRoom(player.ID, room.ID)
-		}
-	}
-	return room, matched, nil
-}
-
-func (gm *GameManager) GetRoomByPlayerID(playerID string) (*Room, bool) {
-	roomID, exists := gm.playerRooms[playerID]
-	if !exists {
-		return nil, false
-	}
-	room, exists := gm.rooms[roomID]
-	return room, exists
-}
-
-func (gm *GameManager) GetPlayerByID(playerID string) (*Player, bool) {
+	active := 0
 	for _, room := range gm.rooms {
-		if player, exists := room.GetPlayer(playerID); exists {
-			return player, true
+		if room.Status() == utils.RoomStatusActive {
+			active++
 		}
 	}
-	player, exists := gm.matchmaker.GetPlayer(playerID)
-	if exists {
-		return player, true
+	stats := GameStatistics{
+		Rooms:          len(gm.rooms),
+		ActiveMatches:  active,
+		Queue:          gm.queue.Len(),
+		Players:        len(online),
+		PlayersInRooms: len(gm.playerRooms),
+		PlayersInQueue: gm.queue.Len(),
 	}
-	return nil, false
+	gm.mu.Unlock()
+
+	// Sampling CPU can take a moment; do it outside the lock.
+	stats.MemoryUsage = serverutils.GetMemoryUsage()
+	stats.CPUUsage = serverutils.GetCPUUsage()
+	return stats
 }
 
-func (gm *GameManager) AddPlayerToRoom(playerID string, roomID string) bool {
-	if _, roomExists := gm.rooms[roomID]; !roomExists {
-		return false
+// Shutdown refuses new games, aborts live rooms and flushes every session.
+func (gm *GameManager) Shutdown() {
+	gm.mu.Lock()
+	gm.shuttingDown = true
+	rooms := make([]*Room, 0, len(gm.rooms))
+	for _, room := range gm.rooms {
+		rooms = append(rooms, room)
 	}
-	if _, playerInRoom := gm.playerRooms[playerID]; playerInRoom {
-		return false
+	queued := gm.queue.Drain()
+	gm.mu.Unlock()
+
+	for _, room := range rooms {
+		room.Abort(utils.RoomCloseServerShutdown)
 	}
-	gm.playerRooms[playerID] = roomID
-	return true
+	for _, p := range queued {
+		p.SendError(ErrShuttingDown)
+	}
+
+	gm.mu.Lock()
+	sessions := make([]*Player, 0, len(gm.sessions))
+	for _, p := range gm.sessions {
+		sessions = append(sessions, p)
+	}
+	gm.mu.Unlock()
+	for _, p := range sessions {
+		p.Close()
+	}
 }
 
-func (gm *GameManager) CreateRoom(p *Player) *Room {
-	room := NewRoom(p, nil, gm.db)
-	gm.attachRoomLifecycle(room)
-	gm.rooms[room.ID] = room
-	gm.AddPlayerToRoom(p.ID, room.ID)
-	return room
-}
+// ---------------------------------------------------------------------------
+// Internals
 
-func (gm *GameManager) GetRoomByID(roomID string) (*Room, bool) {
-	room, exists := gm.rooms[roomID]
-	return room, exists
-}
-
-func (gm *GameManager) HandlePlayerDisconnect(player *Player) {
-	if player == nil {
-		return
+func (gm *GameManager) checkAvailableLocked(p *Player) error {
+	switch {
+	case gm.shuttingDown:
+		return ErrShuttingDown
+	case gm.playerRooms[p.ID] != "":
+		return ErrAlreadyInRoom
+	case gm.queue.Contains(p.ID):
+		return ErrAlreadyQueued
 	}
-
-	gm.matchmaker.RemovePlayer(player.ID)
-
-	room, inRoom := gm.GetRoomByPlayerID(player.ID)
-	if !inRoom {
-		return
-	}
-
-	room.HandleDisconnect(player.ID)
-
-	delete(gm.playerRooms, player.ID)
-	delete(room.Players, player.ID)
-	delete(room.Scores, player.ID)
-
-	opponent := room.GetOpponent(player.ID)
-	if opponent != nil {
-		if opponent.Conn != nil {
-			opponent.Conn.WriteJSON(map[string]any{
-				"type":    utils.GameActionPlayerLeft,
-				"payload": player.ID,
-			})
-			opponent.Conn.WriteJSON(map[string]any{
-				"type": utils.GameActionRoomDestroyed,
-				"payload": map[string]any{
-					"room_id":   room.ID,
-					"player_id": player.ID,
-				},
-			})
-		}
-
-		select {
-		case room.stopTimer <- struct{}{}:
-		default:
-		}
-
-		delete(gm.playerRooms, opponent.ID)
-	}
-
-	delete(gm.rooms, room.ID)
-}
-
-func (gm *GameManager) DestroyRoom(roomID string) error {
-	room, exists := gm.rooms[roomID]
-	if !exists {
-		return fmt.Errorf("Room not found")
-	}
-	for playerID := range room.Players {
-		delete(gm.playerRooms, playerID)
-	}
-	delete(gm.rooms, roomID)
 	return nil
 }
 
-func (gm *GameManager) attachRoomLifecycle(room *Room) {
-	if room == nil {
-		return
+func (gm *GameManager) newRoomLocked(private bool) *Room {
+	id := utils.GenerateRoomID()
+	for gm.rooms[id] != nil {
+		id = utils.GenerateRoomID()
 	}
+	room := newRoom(id, private, gm.settings, gm.provider, gm.recorder, gm.onRoomClosed)
+	gm.rooms[id] = room
+	return room
+}
 
-	room.onRoomDestroyed = func(roomID string) {
-		if err := gm.DestroyRoom(roomID); err != nil {
-			log.Printf("room cleanup: failed to destroy room %s: %v", roomID, err)
+func (gm *GameManager) roomOfLocked(playerID string) *Room {
+	id, ok := gm.playerRooms[playerID]
+	if !ok {
+		return nil
+	}
+	return gm.rooms[id]
+}
+
+func (gm *GameManager) onRoomClosed(roomID string, playerIDs []string) {
+	gm.mu.Lock()
+	defer gm.mu.Unlock()
+	delete(gm.rooms, roomID)
+	for _, id := range playerIDs {
+		if gm.playerRooms[id] == roomID {
+			delete(gm.playerRooms, id)
 		}
+	}
+}
+
+func (gm *GameManager) unmapPlayer(playerID, roomID string) {
+	gm.mu.Lock()
+	defer gm.mu.Unlock()
+	if gm.playerRooms[playerID] == roomID {
+		delete(gm.playerRooms, playerID)
 	}
 }

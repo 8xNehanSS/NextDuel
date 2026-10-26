@@ -1,9 +1,0 @@
-.git
-.git/**
-node_modules
-NextDuel/nextduel-frontend/node_modules
-NextDuel/nextduel-frontend/dist
-NextDuel/nextduel-frontend/.next
-
-NextDuel/nextduel-svr/tmp
-NextDuel/nextduel-svr/bin

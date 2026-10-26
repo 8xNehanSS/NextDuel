@@ -1,27 +1,35 @@
 package history
 
 import (
+	"net/http"
 	"nex-server/server"
-	"nextduel-svr/models"
+	"nextduel-svr/repository"
+	"strconv"
+)
+
+const (
+	defaultLimit = 20
+	maxLimit     = 100
 )
 
 func GetDuelHistory(ctx *server.Context) error {
-	// select matches where mode = 'duel' and status = 'completed'
-	db := ctx.DB()
-	// get player record first
-	var player models.Players
-	row := db.Model(&models.Players{}).Where("username = ?", ctx.UserID()).First(&player)
-	if row.Error != nil {
-		ctx.Error(500, "Failed to find player record", row.Error)
-		return nil
+	limit := intParam(ctx, "limit", defaultLimit)
+	if limit < 1 || limit > maxLimit {
+		limit = defaultLimit
 	}
-	// then get match records
-	rows := db.Model(&models.MatchPlayer{}).Where("player_id = ?", player.ID)
-	var matchPlayers []models.MatchPlayer
-	if err := rows.Find(&matchPlayers).Error; err != nil {
-		ctx.Error(500, "Failed to fetch duel history", err)
-		return nil
+	offset := max(intParam(ctx, "offset", 0), 0)
+
+	history, err := repository.History(ctx.DB(), ctx.UserID(), limit, offset)
+	if err != nil {
+		return ctx.Error(http.StatusInternalServerError, "Failed to load duel history", err)
 	}
-	ctx.JSON(200, matchPlayers)
-	return nil
+	return ctx.Success(history)
+}
+
+func intParam(ctx *server.Context, name string, fallback int) int {
+	v, err := strconv.Atoi(ctx.GetQueryParam(name))
+	if err != nil {
+		return fallback
+	}
+	return v
 }

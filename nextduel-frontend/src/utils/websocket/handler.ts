@@ -1,71 +1,68 @@
-import { GameAction } from "./events";
+import { GameAction, type ServerEventType, type ServerEvents } from "./events";
 import { useGameStore } from "../../store/gameStore";
-import type { GameStart } from "../../types/game";
+import { useUserStore } from "../../store/userStore";
 import { navigationService } from "../navigationService";
 import { appEventBus } from "../eventbus";
+import type { RoomCloseReason, RoomState } from "../../types/protocol";
 
-type Handler = (payload: any) => void;
+type Handlers = { [K in ServerEventType]?: (payload: ServerEvents[K]) => void };
 
-export const handlers: Partial<Record<GameAction, Handler>> = {
-  [GameAction.ERROR]: (payload) => {
-    console.error("Error from server:", payload);
-  },
-  [GameAction.WAITING_QUEUE]: () => {
-    useGameStore.getState().setPhase("waiting");
-  },
-  [GameAction.MATCH_FOUND]: () => {
-    useGameStore.getState().setPhase("matched");
-  },  
-  [GameAction.ROOM_CREATED]: (payload) => {
-    useGameStore.getState().setConnected(true);
-    useGameStore.getState().setRoom(payload);
+const game = () => useGameStore.getState();
+const me = () => useUserStore.getState().username;
+
+const closeReasons: Record<RoomCloseReason, string> = {
+    opponent_left: "Your opponent left before the duel started.",
+    questions_unavailable: "Questions could not be loaded. Please try again.",
+    server_shutdown: "The server is restarting. Please rejoin in a moment.",
+};
+
+function enterRoom(room: RoomState) {
+    game().enteredRoom(room);
     navigationService.go("/game");
-  },
-  [GameAction.ROOM_JOINED]: (payload) => {
-    useGameStore.getState().setRoom(payload);
-  },
-  [GameAction.PLAYER_JOINED]: (payload) => {
-    console.log("Player joined:", payload);
-  },
-  [GameAction.PLAYER_READY]: (payload) => {
-    console.log("Player ready:", payload);
-  },
-  [GameAction.PLAYER_READY_OK]: (payload) => {
-    console.log("Player ready OK:", payload);
-    useGameStore.getState().setReady(true);
-  },
-  [GameAction.DUEL_START]: (payload) => {
-    const { question, round, answers } = payload as GameStart;
-    useGameStore.getState().setPhase("started");
-    useGameStore.getState().setRound(round);
-    useGameStore.getState().setQuestion({
-      id: crypto.randomUUID(),
-      question: question,
-      answers: answers,
-    });
-    
-    // set player scores
-  },
-  [GameAction.GAME_OVER]: (payload) => {
-    useGameStore.getState().setPhase("game_over");
-    console.log("Game over:", payload);
-  },
-  [GameAction.TIMER_UPDATE]: (payload) => {
-    useGameStore.getState().setTimer(payload);
-  },
-  [GameAction.INTERMISSION]: () => {
-    useGameStore.getState().setPhase("intermission");
-  },
-  [GameAction.INTERMISSION_TIMER_UPDATE]: (payload) => {
-    useGameStore.getState().setTimer(payload);
-  },
-  [GameAction.ROOM_DESTROYED]: (payload) => {
-    console.warn("Room destroyed:", payload);
-    appEventBus.fire("notification", { message: "Room destroyed : Player disconnected", type: "info"  });
-    useGameStore.getState().resetGame();
-    navigationService.go("/lobby");
-  },
-  [GameAction.DUEL_ANSWER]: () => {
-    useGameStore.getState().setAnswered();
-  }
+}
+
+export const handlers: Handlers = {
+    [GameAction.ERROR]: (err) => {
+        game().answerRejected();
+        appEventBus.fire("notification", { message: err?.message ?? "Something went wrong.", type: "error" });
+    },
+
+    [GameAction.WAITING_QUEUE]: ({ position }) => game().queued(position),
+    [GameAction.QUEUE_LEFT]: () => game().reset(),
+
+    [GameAction.MATCH_FOUND]: (room) => {
+        appEventBus.fire("notification", { message: "Opponent found!", type: "success" });
+        enterRoom(room);
+    },
+    [GameAction.ROOM_CREATED]: enterRoom,
+    [GameAction.ROOM_JOINED]: enterRoom,
+    [GameAction.ROOM_STATE]: (room) => game().roomUpdated(room),
+
+    [GameAction.PLAYER_LEFT]: ({ playerId }) => {
+        if (playerId !== me()) {
+            appEventBus.fire("notification", { message: `${playerId} left the room.`, type: "info" });
+        }
+    },
+
+    [GameAction.ROOM_DESTROYED]: ({ reason }) => {
+        appEventBus.fire("notification", { message: closeReasons[reason] ?? "The room was closed.", type: "info" });
+        game().reset();
+        navigationService.go("/lobby");
+    },
+
+    [GameAction.DUEL_START]: ({ maxRounds }) => game().starting(maxRounds),
+    [GameAction.ROUND_START]: (q) => game().roundStarted(q),
+    [GameAction.TIMER_UPDATE]: ({ remaining }) => game().tick(remaining),
+    [GameAction.INTERMISSION_TIMER_UPDATE]: ({ remaining }) => game().tick(remaining),
+    [GameAction.DUEL_ANSWER]: ({ answer }) => game().answerAccepted(answer),
+
+    [GameAction.DUEL_FAST]: ({ playerId, remaining }) => {
+        if (playerId !== me()) {
+            game().opponentAnsweredFast(remaining);
+        }
+    },
+
+    [GameAction.ROUND_RESULT]: (result) => game().roundResolved(result),
+    [GameAction.INTERMISSION]: ({ nextRound, remaining }) => game().intermission(nextRound, remaining),
+    [GameAction.GAME_OVER]: (result) => game().finished(result),
 };

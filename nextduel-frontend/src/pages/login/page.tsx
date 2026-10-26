@@ -1,85 +1,80 @@
-import { useState } from "react";
+import { useState, type FormEvent } from "react";
+import { Link, useSearchParams } from "react-router";
 import { login, type LoginRequest } from "../../services/api/common";
+import { useUserStore } from "../../store/userStore";
+import { navigationService } from "../../utils/navigationService";
+import { errorMessage } from "../../utils/apiclient";
+import { safeRedirect } from "../../utils/redirect";
 
 const LoginPage = () => {
-    const [loginData, setLoginData] = useState<LoginRequest>({
-        username: "",
-        password: "",
-    });
+    const [form, setForm] = useState<LoginRequest>({ username: "", password: "" });
     const [error, setError] = useState<string | null>(null);
+    const [submitting, setSubmitting] = useState(false);
+    const [params] = useSearchParams();
+    const setUser = useUserStore((s) => s.setUser);
 
-    async function handleLogin() {
-        if (!loginData.username || !loginData.password) {
+    async function handleSubmit(e: FormEvent<HTMLFormElement>) {
+        e.preventDefault();
+        if (!form.username.trim() || !form.password) {
             setError("Please enter both username and password");
             return;
         }
         setError(null);
+        setSubmitting(true);
         try {
-            await login(loginData);
-        } catch {
-            setError("Invalid username or password");
+            const user = await login({ ...form, username: form.username.trim() });
+            setUser(user.username);
+            navigationService.go(safeRedirect(params.get("redirect")));
+        } catch (err) {
+            setError(errorMessage(err, "Login failed"));
+        } finally {
+            setSubmitting(false);
         }
     }
 
-    const handleSubmit = async (e: React.SubmitEvent) => {
-        e.preventDefault();
-        await handleLogin();
-    };
-
-
     return (
-        <div className="flex items-center justify-center px-4 mt-4">
-            <div className="w-full max-w-md bg-white shadow-xl rounded-2xl p-8">
-                <p className="text-sm text-gray-500 text-center mt-2">
-                    Please enter your credentials to log in
+        <div className="page-shell auth-shell">
+            <form className="panel auth-card float-in" onSubmit={handleSubmit} noValidate>
+                <h1 className="section-title">Welcome back</h1>
+                <p className="section-subtitle">Sign in to jump into a duel.</p>
+
+                <label className="form-field">
+                    <span className="form-label">Username</span>
+                    <input
+                        className="input-field"
+                        autoComplete="username"
+                        autoFocus
+                        value={form.username}
+                        onChange={(e) => setForm((prev) => ({ ...prev, username: e.target.value }))}
+                    />
+                </label>
+
+                <label className="form-field">
+                    <span className="form-label">Password</span>
+                    <input
+                        className="input-field"
+                        type="password"
+                        autoComplete="current-password"
+                        value={form.password}
+                        onChange={(e) => setForm((prev) => ({ ...prev, password: e.target.value }))}
+                    />
+                </label>
+
+                {error && (
+                    <p className="form-error" role="alert">
+                        {error}
+                    </p>
+                )}
+
+                <button type="submit" className="btn btn-primary btn-block" disabled={submitting}>
+                    {submitting ? "Signing in..." : "Sign in"}
+                </button>
+
+                <p className="auth-footer">
+                    New to NextDuel? <Link to="/register">Create an account</Link>
                 </p>
-
-
-                <form onSubmit={handleSubmit}>
-                    <div className="mt-6 space-y-4">
-                        <input
-                            type="text"
-                            placeholder="Username"
-                            value={loginData.username}
-                            onChange={(e) =>
-                                setLoginData((prev) => ({
-                                    ...prev,
-                                    username: e.target.value,
-                                }))
-                            }
-                            className="w-full px-4 py-3 border border-gray-300 rounded-lg 
-                                   focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                        />
-
-                        <input
-                            type="password"
-                            placeholder="Password"
-                            value={loginData.password}
-                            onChange={(e) =>
-                                setLoginData((prev) => ({
-                                    ...prev,
-                                    password: e.target.value,
-                                }))
-                            }
-                            className="w-full px-4 py-3 border border-gray-300 rounded-lg 
-                                   focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                        />
-
-                        {error && (
-                            <p className="text-red-500 text-sm text-center">{error}</p>
-                        )}
-
-                        <button
-                            type="submit"
-                            className="w-full bg-blue-600 text-white py-3 rounded-lg font-semibold
-                                   hover:bg-blue-700 active:scale-[0.98] transition"
-                        >
-                            Login
-                        </button>
-                    </div>
-                </form>
-            </div>
-        </div >
+            </form>
+        </div>
     );
 };
 

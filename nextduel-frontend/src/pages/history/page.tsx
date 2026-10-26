@@ -1,80 +1,128 @@
-import { useEffect, useState } from "react"
-import { getDuelHistory } from "../../services/api/history"
+import { useEffect, useState } from "react";
+import { Link } from "react-router";
+import { getDuelHistory } from "../../services/api/history";
+import type { DuelHistory, MatchResult } from "../../types/api";
+import { errorMessage } from "../../utils/apiclient";
 
-const HistoryPage = () => {
-    const [history, setHistory] = useState<any[]>([])
+const PAGE_SIZE = 10;
 
-    useEffect(() => {
-        loadData()
-    }, [])
+const resultLabel: Record<MatchResult, string> = { win: "Win", loss: "Loss", draw: "Draw" };
 
-    const loadData = async () => {
-        try {
-            const response = await getDuelHistory()
-            setHistory(response)
-        } catch (error) {
-            console.error("Error fetching duel history:", error)
-        }
-    }
-return (
-    <div className="w-6xl mx-auto p-6">
-        <div className="space-y-4">
-            {history.map((item, index) => (
-                <div
-                    key={index}
-                    className="bg-white rounded-xl shadow-md border border-gray-200 p-5 hover:shadow-lg transition"
-                >
-                    <div className="flex flex-col md:flex-row md:justify-between md:items-center gap-2">
-                        <div>
-                            <h2 className="text-lg font-semibold">
-                                Match #{item.match_id}
-                            </h2>
-                            <p className="text-gray-600">
-                                Player ID: {item.player_id}
-                            </p>
-                        </div>
-
-                        <div className="flex gap-2">
-                            <span className="px-3 py-1 bg-blue-100 text-blue-700 rounded-full text-sm">
-                                Slot {item.slot}
-                            </span>
-
-                            <span className="px-3 py-1 bg-green-100 text-green-700 rounded-full text-sm">
-                                {item.rounds_won} Rounds Won
-                            </span>
-
-                            <span className="px-3 py-1 bg-purple-100 text-purple-700 rounded-full text-sm">
-                                Score {item.score}
-                            </span>
-                        </div>
-                    </div>
-
-                    <div className="flex flex-row gap-4 mt-4 text-sm text-gray-500">
-                        <div>
-                            <span className="font-medium text-gray-700">
-                                Joined:
-                            </span>{" "}
-                            {new Date(item.joined_at).toLocaleString()}
-                        </div>
-
-                        <div>
-                            <span className="font-medium text-gray-700">
-                                Left:
-                            </span>{" "}
-                            {new Date(item.left_at).toLocaleString()}
-                        </div>
-                    </div>
-                </div>
-            ))}
-        </div>
-
-        {history.length === 0 && (
-            <div className="text-center py-10 text-gray-500">
-                No match history found.
-            </div>
-        )}
-    </div>
-);
+function formatDate(iso: string) {
+    const d = new Date(iso);
+    return Number.isNaN(d.getTime()) || d.getFullYear() < 2000 ? "—" : d.toLocaleString();
 }
 
-export default HistoryPage
+const HistoryPage = () => {
+    const [page, setPage] = useState(0);
+    const [history, setHistory] = useState<DuelHistory | null>(null);
+    const [error, setError] = useState<string | null>(null);
+
+    useEffect(() => {
+        const controller = new AbortController();
+        getDuelHistory(PAGE_SIZE, page * PAGE_SIZE, controller.signal)
+            .then((h) => {
+                setHistory(h);
+                setError(null);
+            })
+            .catch((err) => {
+                if (!controller.signal.aborted) setError(errorMessage(err));
+            });
+        return () => controller.abort();
+    }, [page]);
+
+    const totalPages = history ? Math.max(1, Math.ceil(history.total / PAGE_SIZE)) : 1;
+    const stats = history?.stats;
+
+    return (
+        <div className="page-shell">
+            <h1 className="section-title">Match history</h1>
+            <p className="section-subtitle">Your finished duels, newest first.</p>
+
+            {stats && (
+                <div className="stat-grid" style={{ marginTop: 20 }}>
+                    <div className="stat-card">
+                        <p className="stat-label">Matches</p>
+                        <p className="stat-value">{stats.total_matches}</p>
+                    </div>
+                    <div className="stat-card">
+                        <p className="stat-label">Wins</p>
+                        <p className="stat-value">{stats.wins}</p>
+                    </div>
+                    <div className="stat-card">
+                        <p className="stat-label">Losses</p>
+                        <p className="stat-value">{stats.losses}</p>
+                    </div>
+                    <div className="stat-card">
+                        <p className="stat-label">Draws</p>
+                        <p className="stat-value">{stats.draws}</p>
+                    </div>
+                    <div className="stat-card">
+                        <p className="stat-label">Win rate</p>
+                        <p className="stat-value">{Math.round(stats.win_rate * 100)}%</p>
+                    </div>
+                </div>
+            )}
+
+            {error && <p className="form-error" style={{ marginTop: 20 }}>Could not load history: {error}</p>}
+            {!history && !error && <p className="section-subtitle" style={{ marginTop: 20 }}>Loading...</p>}
+
+            {history && history.matches.length === 0 && (
+                <div className="panel empty-state" style={{ marginTop: 20 }}>
+                    <h2 className="section-title" style={{ fontSize: 22 }}>
+                        No matches yet
+                    </h2>
+                    <p className="section-subtitle">Finish a duel and it will show up here.</p>
+                    <div className="hero-actions" style={{ justifyContent: "center" }}>
+                        <Link to="/lobby" className="btn btn-primary">
+                            Play your first duel
+                        </Link>
+                    </div>
+                </div>
+            )}
+
+            {history && history.matches.length > 0 && (
+                <>
+                    <div className="match-list" style={{ marginTop: 20 }}>
+                        {history.matches.map((m) => (
+                            <div key={m.match_id} className="panel match-row">
+                                <span className={`badge badge-${m.result}`}>{resultLabel[m.result]}</span>
+                                <div className="match-main">
+                                    <strong>vs {m.opponent || "unknown"}</strong>
+                                    <span className="muted">
+                                        {formatDate(m.started_at)}
+                                        {m.status === "abandoned" && " · ended by forfeit"}
+                                    </span>
+                                </div>
+                                <div className="match-score">
+                                    <strong>
+                                        {m.rounds_won} – {m.opponent_rounds_won}
+                                    </strong>
+                                    <span className="muted">
+                                        rounds · {m.score}/{m.best_of} correct
+                                    </span>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+
+                    {totalPages > 1 && (
+                        <div className="pagination">
+                            <button className="btn" disabled={page === 0} onClick={() => setPage((p) => p - 1)}>
+                                Previous
+                            </button>
+                            <span className="muted">
+                                Page {page + 1} of {totalPages}
+                            </span>
+                            <button className="btn" disabled={page + 1 >= totalPages} onClick={() => setPage((p) => p + 1)}>
+                                Next
+                            </button>
+                        </div>
+                    )}
+                </>
+            )}
+        </div>
+    );
+};
+
+export default HistoryPage;

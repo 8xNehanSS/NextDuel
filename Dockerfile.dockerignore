@@ -1,0 +1,15 @@
+# BuildKit reads <Dockerfile>.dockerignore from next to the Dockerfile. Paths
+# are relative to the build context, which is the parent directory (see the
+# Dockerfile header). Exclude everything except the two modules we need.
+*
+!NextDuel
+!nex-server
+
+**/.git
+**/node_modules
+NextDuel/nextduel-frontend/dist
+NextDuel/nextduel-svr/*.db*
+NextDuel/nextduel-svr/sessions
+NextDuel/nextduel-svr/tmp
+NextDuel/nextduel-svr/bin
+**/.env

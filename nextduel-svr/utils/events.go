@@ -1,51 +1,41 @@
 package utils
 
+// GameAction is the "type" field of every websocket message exchanged between
+// the client and the server. The TypeScript mirror lives in
+// nextduel-frontend/src/utils/websocket/events.ts — keep both in sync.
 type GameAction string
 
+// Server -> client
 const (
-	// Connection
-	GameActionConnected    GameAction = "connected"
-	GameActionDisconnected GameAction = "disconnected"
-	GameActionError        GameAction = "error"
-	GameActionPong         GameAction = "pong"
+	GameActionError GameAction = "error"
+	GameActionPong  GameAction = "pong"
 
 	// Queue
 	GameActionWaitingQueue GameAction = "waiting_queue"
+	GameActionQueueLeft    GameAction = "queue_left"
 	GameActionMatchFound   GameAction = "match_found"
-	GameActionQueueCount   GameAction = "queue_count"
 
 	// Room
 	GameActionRoomCreated   GameAction = "room_created"
 	GameActionRoomJoined    GameAction = "room_joined"
-	GameActionPlayerJoined  GameAction = "player_joined"
+	GameActionRoomState     GameAction = "room_state"
 	GameActionPlayerLeft    GameAction = "player_left"
 	GameActionRoomDestroyed GameAction = "room_destroyed"
 
-	// Match Lifecycle
-	GameActionDuelStart    GameAction = "duel_start"
-	GameActionRoundStart   GameAction = "round_start"
-	GameActionRoundResult  GameAction = "round_result"
-	GameActionDuelFast     GameAction = "duel_fast"
-	GameActionDuelComplete GameAction = "duel_complete"
-	GameActionIntermission GameAction = "intermission"
-
-	// Game State
-	GameActionScoreUpdate             GameAction = "score_update"
+	// Match lifecycle
+	GameActionDuelStart               GameAction = "duel_start"
+	GameActionRoundStart              GameAction = "round_start"
 	GameActionTimerUpdate             GameAction = "timer_update"
+	GameActionDuelFast                GameAction = "duel_fast"
+	GameActionRoundResult             GameAction = "round_result"
+	GameActionIntermission            GameAction = "intermission"
 	GameActionIntermissionTimerUpdate GameAction = "intermission_timer_update"
 	GameActionGameOver                GameAction = "game_over"
-
-	// Presence
-	GameActionPlayerTyping GameAction = "player_typing"
-
-	// Chat
-	GameActionMessageReceived GameAction = "message_received"
 )
 
+// Client -> server
 const (
-	// Connection
-	GameActionConnect GameAction = "connect"
-	GameActionPing    GameAction = "ping"
+	GameActionPing GameAction = "ping"
 
 	// Queue
 	GameActionJoinQueue  GameAction = "join_queue"
@@ -54,15 +44,11 @@ const (
 	// Room
 	GameActionCreateRoom GameAction = "create_room"
 	GameActionJoinRoom   GameAction = "join_room"
+	GameActionLeaveRoom  GameAction = "leave_room"
 
 	// Match
-	GameActionPlayerReady   GameAction = "player_ready"
-	GameActionPlayerReadyOk GameAction = "player_ready_ok"
+	GameActionPlayerReady GameAction = "player_ready"
 
-	// Gameplay
+	// Gameplay (also echoed back to the sender as an acknowledgement)
 	GameActionDuelAnswer GameAction = "duel_answer"
-	GameActionTyping     GameAction = "typing"
-
-	// Chat
-	GameActionMessage GameAction = "message"
 )
