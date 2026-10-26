@@ -24,6 +24,7 @@ type Room struct {
 
 	roundQuestion string
 	roundAnswer   string
+	roundAnswers  []string
 
 	round             int
 	maxRounds         int
@@ -150,9 +151,10 @@ func (r *Room) startGame() {
 		player.Conn.WriteJSON(map[string]interface{}{
 			"type": utils.GameActionDuelStart,
 			"payload": map[string]interface{}{
-				"quest":   r.roundQuestion,
-				"round":   r.round,
-				"players": r.getPlayerInfo(),
+				"question": r.roundQuestion,
+				"round":    r.round,
+				"players":  r.getPlayerInfo(),
+				"answers":  r.roundAnswers,
 			},
 		})
 	}
@@ -168,6 +170,7 @@ func (r *Room) prepareRound() {
 	}
 	r.roundQuestion = roundQuestion.Question
 	r.roundAnswer = roundQuestion.Answer
+	r.roundAnswers = roundQuestion.AllAnswers
 }
 
 func (r *Room) RoomTimer() {

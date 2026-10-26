@@ -3,6 +3,7 @@ package gamepkg
 import (
 	"encoding/json"
 	"fmt"
+	"math/rand"
 	"net/http"
 
 	"github.com/google/uuid"
@@ -22,11 +23,12 @@ type OpenTDBQuestion struct {
 }
 
 type Question struct {
-	Round      int    `json:"round"`
-	Question   string `json:"question"`
-	Answer     string `json:"answer"`
-	Category   string `json:"category"`
-	Difficulty string `json:"difficulty"`
+	Round      int      `json:"round"`
+	Question   string   `json:"question"`
+	Answer     string   `json:"answer"`
+	Category   string   `json:"category"`
+	Difficulty string   `json:"difficulty"`
+	AllAnswers []string `json:"all_answers"`
 }
 
 type QuestionManager struct {
@@ -72,12 +74,21 @@ func getNewQuestions(rounds int) ([]Question, error) {
 
 	round := 1
 	for _, q := range apiResp.Results {
+
+		// randomize the order of answers
+		allAnswers := append([]string{q.CorrectAnswer}, q.IncorrectAnswers...)
+		for i := range allAnswers {
+			j := i + (rand.Intn(len(allAnswers) - i))
+			allAnswers[i], allAnswers[j] = allAnswers[j], allAnswers[i]
+		}
+
 		questions = append(questions, Question{
 			Round:      round,
 			Question:   q.Question,
 			Answer:     q.CorrectAnswer,
 			Category:   q.Category,
 			Difficulty: q.Difficulty,
+			AllAnswers: allAnswers,
 		})
 		round++
 	}

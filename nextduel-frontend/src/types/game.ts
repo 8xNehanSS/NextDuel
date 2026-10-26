@@ -1,5 +1,6 @@
 export interface GameStart {
-    quest: string;
+    question: string;
+    answers: string[];
     round: number;
     players: {
         id: string;

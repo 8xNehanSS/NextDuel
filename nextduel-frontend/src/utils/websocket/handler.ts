@@ -35,14 +35,15 @@ export const handlers: Partial<Record<GameAction, Handler>> = {
     useGameStore.getState().setReady(true);
   },
   [GameAction.DUEL_START]: (payload) => {
-    const { quest, round } = payload as GameStart;
+    const { question, round, answers } = payload as GameStart;
     useGameStore.getState().setPhase("started");
     useGameStore.getState().setRound(round);
     useGameStore.getState().setQuestion({
       id: crypto.randomUUID(),
-      question: quest,
-      answers: [],
+      question: question,
+      answers: answers,
     });
+    
     // set player scores
   },
   [GameAction.GAME_OVER]: (payload) => {
@@ -64,4 +65,7 @@ export const handlers: Partial<Record<GameAction, Handler>> = {
     useGameStore.getState().resetGame();
     navigationService.go("/lobby");
   },
+  [GameAction.DUEL_ANSWER]: () => {
+    useGameStore.getState().setAnswered();
+  }
 };

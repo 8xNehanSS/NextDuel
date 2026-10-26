@@ -1,7 +1,6 @@
 package main
 
 import (
-	"fmt"
 	"log"
 	"net/http"
 	"nex-server/server"
@@ -65,7 +64,7 @@ func registerEndpoints(r *server.Registrar, config serverutils.Config, services 
 	api.PrivateWS("/ws", registerWSHandlers, services.(*Services).Game.HandleWSDisconnect, services)
 
 	// file server
-	api.ServeApplication(http.Dir(fmt.Sprint("./%s", config.HtmlRoot)))
+	r.Handle("/", r.ServeApplication(http.Dir(config.HtmlRoot)))
 }
 
 func registerWSHandlers(ctx *server.Context, conn *websocket.Conn, msg server.WSMessage, services any) error {

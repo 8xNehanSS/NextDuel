@@ -1,0 +1,36 @@
+services:
+  nextduel:
+    image: nextduel:latest
+    container_name: nextduel
+    restart: unless-stopped
+    expose:
+      - "8080"
+    environment:
+      PORT: "8080"
+      SERVER_ROOT: "."
+      COOKIE_KEY: "NEX_SERVER"
+    volumes:
+      - ./nextduel.db:/app/nextduel.db
+    networks:
+      - web
+
+  caddy:
+    image: caddy:latest
+    container_name: caddy
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    networks:
+      - web
+
+networks:
+  web:
+
+volumes:
+  caddy_data:
+  caddy_config:

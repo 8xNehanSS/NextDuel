@@ -36,6 +36,7 @@ type GameStore = {
 
     // Question
     currentQuestion: Question | null;
+    answered: boolean;
 
     // Timer
     timer: number;
@@ -70,6 +71,8 @@ type GameStore = {
 
     incrementScore: (playerId: string) => void;
 
+    setAnswered: () => void;
+
     resetGame: () => void;
 };
 
@@ -88,6 +91,7 @@ const initialState = {
     maxRounds: 5,
 
     currentQuestion: null,
+    answered: false,
 
     timer: 0,
 
@@ -129,6 +133,7 @@ export const useGameStore = create<GameStore>((set) => ({
     setQuestion: (currentQuestion) =>
         set({
             currentQuestion,
+            answered: false, // Reset answered state when a new question is set
         }),
 
     setTimer: (timer) =>
@@ -149,6 +154,11 @@ export const useGameStore = create<GameStore>((set) => ({
     setGameWinner: (gameWinnerId) =>
         set({
             gameWinnerId,
+        }),
+    
+    setAnswered: () => 
+        set({
+            answered: true,
         }),
 
     incrementScore: (playerId) =>

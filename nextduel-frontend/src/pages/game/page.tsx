@@ -11,6 +11,7 @@ const GamePage = () => {
     const me = useGameStore((state) => state.me);
     const opponent = useGameStore((state) => state.opponent);
     const ready = useGameStore((state) => state.ready);
+    const answered = useGameStore((state) => state.answered);
 
     // local state
     const [answer, setAnswer] = useState("");
@@ -28,6 +29,7 @@ const GamePage = () => {
             questionId: question?.id,
             answer: answer.trim(),
         });
+        setAnswer(""); // Clear the input field after submission
     }
 
     return (
@@ -74,20 +76,35 @@ const GamePage = () => {
                         <h2 className="section-title" style={{ fontSize: 28 }}>
                             {question?.question ?? "No question available"}
                         </h2>
-                        <div>
-                            <input
-                                className="input-field"
-                                type="text"
-                                placeholder="Type your answer"
-                                value={answer}
-                                onChange={(e) => setAnswer(e.target.value)}
-                            />
-                        </div>
-                        <div className="hero-actions">
-                            <button className="btn btn-primary" onClick={handleAnswerSubmit}>
-                                Submit answer
-                            </button>
-                        </div>
+                        {answered ? (
+                            <p className="section-subtitle" style={{ marginTop: 10, color: "green" }}>
+                                Answer submitted! Waiting for results...
+                            </p>
+                        ) : (
+                            <>
+                                <div>
+                                    {question?.answers.map((ans, index) => (
+                                        <div key={index} className="answer-option">
+                                            <span>{String.fromCharCode(65 + index)}. {ans}</span>
+                                        </div>)
+                                    )}
+                                </div>
+                                <div>
+                                    <input
+                                        className="input-field"
+                                        type="text"
+                                        placeholder="Type your answer"
+                                        value={answer}
+                                        onChange={(e) => setAnswer(e.target.value)}
+                                    />
+                                </div>
+                                <div className="hero-actions">
+                                    <button className="btn btn-primary" onClick={handleAnswerSubmit}>
+                                        Submit answer
+                                    </button>
+                                </div>
+                            </>
+                        )}
                     </div>
 
                     <div className="panel float-in">
