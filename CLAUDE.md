@@ -136,6 +136,7 @@ The server pushes full `RoomState` snapshots (`room_state`, `match_found`,
 ## Gotchas
 
 - Windows dev box: files may be CRLF on checkout; `.gitattributes` normalises. Run `gofmt -w` before committing.
+- Releases: pushing any tag runs `.github/workflows/release.yml`, which calls `ci.yml` (reusable via `workflow_call`, `docker: false`) and then publishes a `docker save` tarball (`nextduel-<tag>.tar.gz` + `.sha256`) to a GitHub Release and as a workflow artifact. The tag becomes `main.version`, which `/api/health` reports.
 - CI checks out the private nex-server repo with the `NEX_SERVER_DEPLOY_KEY` secret (read-only deploy key; see README "CI"). Any new job that builds the backend needs that checkout step too.
 - The Docker build context is the **parent** directory (needs `nex-server/`);
   ignore rules live in `Dockerfile.dockerignore`.

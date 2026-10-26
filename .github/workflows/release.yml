@@ -1,0 +1,112 @@
+name: Release
+
+# Pushing any tag (e.g. `git tag v1.2.0 && git push origin v1.2.0`) runs the
+# full CI checks, builds the Docker image and publishes it as a loadable
+# tarball: attached to a GitHub Release and kept as a workflow artifact.
+#
+# Deploy on the host:
+#   gunzip -c nextduel-v1.2.0.tar.gz | docker load
+#   docker compose up -d            # image: nextduel:latest (also nextduel:v1.2.0)
+
+on:
+  push:
+    tags: ["**"]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  ci:
+    uses: ./.github/workflows/ci.yml
+    with:
+      docker: false
+    secrets: inherit
+
+  image:
+    needs: ci
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # create the GitHub Release
+    steps:
+      - name: version from tag
+        id: meta
+        run: |
+          # Docker tags allow [A-Za-z0-9_.-] only (git tags may contain '/').
+          version=$(echo "$GITHUB_REF_NAME" | sed 's/[^A-Za-z0-9_.-]/-/g' | cut -c1-128)
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "file=nextduel-$version.tar.gz" >> "$GITHUB_OUTPUT"
+
+      # Build context is the parent dir of this repo, with nex-server next to it.
+      - uses: actions/checkout@v4
+        with:
+          path: NextDuel
+      - uses: actions/checkout@v4
+        with:
+          repository: 8xNehanSS/NEX-Server-Framework
+          ssh-key: ${{ secrets.NEX_SERVER_DEPLOY_KEY }}
+          path: nex-server
+          persist-credentials: false
+
+      - uses: docker/setup-buildx-action@v3
+
+      - name: build image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: NextDuel/Dockerfile
+          platforms: linux/amd64
+          build-args: VERSION=${{ steps.meta.outputs.version }}
+          tags: |
+            nextduel:${{ steps.meta.outputs.version }}
+            nextduel:latest
+          labels: |
+            org.opencontainers.image.title=nextduel
+            org.opencontainers.image.version=${{ steps.meta.outputs.version }}
+            org.opencontainers.image.revision=${{ github.sha }}
+            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+          # Same format as `docker save`, so the host can `docker load` it.
+          outputs: type=docker,dest=${{ runner.temp }}/nextduel.tar
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: smoke test image
+        run: |
+          docker load -i "$RUNNER_TEMP/nextduel.tar"
+          docker run -d --name smoke -p 8080:8080 nextduel:${{ steps.meta.outputs.version }}
+          for i in $(seq 1 30); do
+            if curl -fsS http://localhost:8080/api/health; then echo; break; fi
+            sleep 1
+          done
+          curl -fsS http://localhost:8080/api/health | grep -q '"version":"${{ steps.meta.outputs.version }}"' \
+            || { docker logs smoke; exit 1; }
+          docker rm -f smoke
+
+      - name: package
+        working-directory: ${{ runner.temp }}
+        run: |
+          gzip -9 -c nextduel.tar > "${{ steps.meta.outputs.file }}"
+          sha256sum "${{ steps.meta.outputs.file }}" > "${{ steps.meta.outputs.file }}.sha256"
+          ls -lh nextduel-*
+
+      - name: upload workflow artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: nextduel-${{ steps.meta.outputs.version }}
+          path: |
+            ${{ runner.temp }}/${{ steps.meta.outputs.file }}
+            ${{ runner.temp }}/${{ steps.meta.outputs.file }}.sha256
+          retention-days: 90
+          compression-level: 0 # already gzipped
+
+      - name: publish GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: NextDuel ${{ github.ref_name }}
+          generate_release_notes: true
+          files: |
+            ${{ runner.temp }}/${{ steps.meta.outputs.file }}
+            ${{ runner.temp }}/${{ steps.meta.outputs.file }}.sha256

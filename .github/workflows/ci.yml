@@ -4,6 +4,13 @@ on:
   push:
     branches: [main]
   pull_request:
+  # Lets release.yml run the same checks before publishing.
+  workflow_call:
+    inputs:
+      docker:
+        description: Also run the docker build check
+        type: boolean
+        default: true
 
 permissions:
   contents: read
@@ -69,6 +76,8 @@ jobs:
       - run: npm run build
 
   docker:
+    # Skipped when release.yml calls this workflow; it builds the image itself.
+    if: inputs.docker != false
     runs-on: ubuntu-latest
     needs: [backend, frontend]
     steps:

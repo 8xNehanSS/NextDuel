@@ -114,6 +114,30 @@ cp .env.example .env        # set DOMAIN, ADMIN_PASSWORD, ...
 docker compose up -d --build
 ```
 
+### Releases (recommended)
+
+Pushing a tag builds and publishes the image automatically
+(`.github/workflows/release.yml`):
+
+```bash
+git tag v1.2.0
+git push origin v1.2.0
+```
+
+The workflow runs the full CI checks, builds the image (tagged `nextduel:v1.2.0`
+and `nextduel:latest`, with the version baked into `/api/health`), smoke-tests
+it, and attaches `nextduel-v1.2.0.tar.gz` plus a `.sha256` checksum to a new
+**GitHub Release**. The same files are also kept as a workflow artifact for 90
+days. On the server:
+
+```bash
+sha256sum -c nextduel-v1.2.0.tar.gz.sha256
+gunzip -c nextduel-v1.2.0.tar.gz | docker load
+docker compose up -d          # without --build, so it uses the loaded image
+```
+
+### Building by hand
+
 The image is built from the **parent** directory (it needs `nex-server`):
 
 ```bash
